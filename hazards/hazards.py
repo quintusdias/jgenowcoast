@@ -9,24 +9,25 @@ import numpy as np
 
 # Dictionary of time zone abbreviations (keys) and their UTC offsets (values)
 _TIMEZONES = {
-	"AST": -4,
-	"EST": -5,
-	"EDT": -4,
-	"CST": -6,
-	"CDT": -5,
-	"MST": -7,
-	"MDT": -6,
-	"PST": -8,
-	"PDT": -7,
-	"AKST": -9,
-	"AKDT": -8,
-	"HST": -10,
-	"HAST": -10,
-	"HADT": -9,
-	"SST": -11,
-	"SDT": -10,
-	"CHST": 10
+    "AST": -4,
+    "EST": -5,
+    "EDT": -4,
+    "CST": -6,
+    "CDT": -5,
+    "MST": -7,
+    "MDT": -6,
+    "PST": -8,
+    "PDT": -7,
+    "AKST": -9,
+    "AKDT": -8,
+    "HST": -10,
+    "HAST": -10,
+    "HADT": -9,
+    "SST": -11,
+    "SDT": -10,
+    "CHST": 10
 }
+
 
 class Hazards(object):
     """
@@ -52,7 +53,7 @@ class Hazards(object):
         """
         self.hazard_header = None
         self.expires = None
-        self.polygon  = []
+        self.polygon = []
 
         if os.path.exists(fname):
             with open(fname, 'rt') as f:
@@ -71,8 +72,8 @@ class Hazards(object):
 
     def _parse_issuance_time(self, txt):
         """
-        Parse the "Issuance" timestamp from the message.  This is when the warning
-        is issued (?)
+        Parse the "Issuance" timestamp from the message.  This is when the
+        warning is issued (?)
 
         Example:  117 PM EST SAT MAR 3 2012
 
@@ -104,13 +105,10 @@ class Hazards(object):
         if m.group('am_or_pm') == 'PM':
             hour += 12
 
-        day = int(m.group('day'))
-        year = int(m.group('year'))
-
         datestring = '{} {} {:02d} {}:{}:00'.format(m.group('year'),
-                                                       m.group('namemonth'),
-                                                       int(m.group('day')),
-                                                       hour, minute)
+                                                    m.group('namemonth'),
+                                                    int(m.group('day')),
+                                                    hour, minute)
         issuance_time = dt.datetime.strptime(datestring, '%Y %b %d %H:%M:%S')
         delta = dt.timedelta(hours=_TIMEZONES[m.group('timezone')])
         self.issuance_time = issuance_time - delta
@@ -124,8 +122,12 @@ class Hazards(object):
         txt : str
             Content of message.
         """
+        # Expires is only one the first line.
         line = txt.split('\n')[0]
-        regex = re.compile("Expires:(?P<expires>\d{12});Remove:(?P<remove>\d{12});")
+
+        # 12 digit date
+        regex = re.compile(r'''Expires:(?P<expires>\d{12});
+                               Remove:(?P<remove>\d{12});''', re.VERBOSE)
         m = regex.match(line)
         if m is None:
             raise RuntimeError("Could not parse Expires timestamp.")
@@ -205,5 +207,3 @@ class Hazards(object):
         hazard_text = re.sub('\.\.\.', '', hazard_text)
         hazard_text = re.sub('\s\s', ' ', hazard_text)
         self.hazard_text = hazard_text
-
-
