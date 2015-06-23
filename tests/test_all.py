@@ -1,11 +1,20 @@
 from contextlib import closing
 import datetime as dt
+import sys
 import unittest
 import urllib
 
+if sys.hexversion < 0x03000000:
+    from mock import patch
+    from StringIO import StringIO
+else:
+    from unittest.mock import patch
+    from io import StringIO
 
 from hazards import Hazards
+from hazards import commandline
 
+la_url = 'ftp://tgftp.nws.noaa.gov/data/watches_warnings/thunderstorm/la/lac025.txt'
 
 class TestHazards(unittest.TestCase):
     """
@@ -15,9 +24,13 @@ class TestHazards(unittest.TestCase):
             txt = page.read()
         return txt
 
+    def test_hzdump(self):
+        with patch('sys.argv', new=['', la_url]):
+            with patch('sys.stdout', new=StringIO()):
+                commandline.hzdump()
+
     def test_thunderstorm(self):
-        url = 'ftp://tgftp.nws.noaa.gov/data/watches_warnings/thunderstorm/la/lac025.txt'
-        txt = self.get_data(url)
+        txt = self.get_data(la_url)
         hz = Hazards(txt)
 
         expected = ('SEVERE THUNDERSTORM WARNING FOR SOUTHERN FRANKLIN PARISH '

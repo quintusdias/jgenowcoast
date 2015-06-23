@@ -2,7 +2,12 @@ import copy
 import datetime as dt
 import os
 import re
-import StringIO
+import sys
+
+if sys.hexversion < 0x030000:
+    from StringIO import StringIO
+else:
+    from io import StringIO
 
 import numpy as np
 
@@ -69,6 +74,19 @@ class Hazards(object):
         self._parse_issuance_time(txt)
         self._parse_polygon(txt)
         self._create_wkt()
+
+    def __str__(self):
+
+        fmt = 'Hazard:  {}\n'
+        fmt += 'Expires:  {}\n'
+        fmt += 'Issued:  {}\n'
+        fmt += 'WKT:  {}'
+
+        txt = fmt.format(self.hazard_text,
+                         self.expires,
+                         self.issuance_time,
+                         self.wkt)
+        return txt
 
     def _parse_issuance_time(self, txt):
         """
@@ -171,7 +189,7 @@ class Hazards(object):
             raise RuntimeError('Failed')
 
         latlon_txt = m.group('latlon').replace('\n', ' ')
-        nums = np.genfromtxt(StringIO.StringIO(latlon_txt))
+        nums = np.genfromtxt(StringIO(unicode(latlon_txt)))
         lats = [float(x)/100.0 for x in nums[0::2]]
         lons = [float(x)/100.0 for x in nums[1::2]]
 
