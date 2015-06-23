@@ -1,0 +1,1 @@
+from hazards import Hazards
