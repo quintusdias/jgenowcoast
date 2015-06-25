@@ -118,6 +118,7 @@ _PHENOMENA = {
 
 class HazardsFile(object):
     """
+    Collection of hazard messages.
     """
     def __init__(self, fname):
         """
@@ -192,6 +193,7 @@ class HazardMessage(object):
 
         self.parse_hazard_header()
         self.parse_vtec_code()
+        self.parse_expiration()
         self.parse_polygon()
         self.create_wkt()
 
@@ -213,6 +215,44 @@ class HazardMessage(object):
                          self.beginning_time, self.ending_time,
                          self.wkt)
         return txt
+
+    def parse_expiration(self):
+        """
+        Parse the product expiration time.
+
+        If the P-VTEC string looks something like what's below...
+
+            PAC007-073-212130-
+            /O.CON.KPBZ.SV.W.0094.000000T0000Z-150621T2130Z/
+            BEAVER PA-LAWRENCE PA-
+            503 PM EDT SUN JUN 21 2015
+
+        the product expiration is at 21:30 on the 21st.  The expiration date
+        should be parsed after the VTEC code.
+        """
+
+        # The event can cross states, so that part can consist of one or more
+        # codes.
+        #
+        # The 2nd element can be present or not, and there can be at least as
+        # many items as there are states.
+        regex = re.compile(r'''
+                            (\w{2}\w\d{3}-)+(\d\d\d-)*
+                            (?P<day>\d{2})
+                            (?P<hour>\d{2})
+                            (?P<minute>\d{2})-
+                            ''', re.VERBOSE)
+        m = regex.search(self._message)
+        if m is None:
+            import pdb; pdb.set_trace()
+            raise RuntimeError("Could not parse expiration time.")
+
+        self.expiration_time = dt.datetime(self.ending_time.year,
+                                           self.ending_time.month,
+                                           int(m.groupdict()['day']),
+                                           int(m.groupdict()['hour']),
+                                           int(m.groupdict()['minute']), 0)
+
 
     def parse_vtec_code(self):
         """

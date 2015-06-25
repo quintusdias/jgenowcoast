@@ -42,6 +42,9 @@ class TestHazards(unittest.TestCase):
         self.assertEqual(hzf[0].ending_time,
                          dt.datetime(2015, 6, 21, 21, 30, 0))
 
+        self.assertEqual(hzf[0].expiration_time,
+                         dt.datetime(2015, 6, 21, 21, 30, 0))
+
         actual = hzf[0].wkt
         expected = ('POLYGON((80.43 40.84, 80.32 40.89, 80.16 40.83, '
                     '80.15 40.69, 80.43 40.84))')
