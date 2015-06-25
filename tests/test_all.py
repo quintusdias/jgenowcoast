@@ -11,8 +11,10 @@ else:
     from unittest.mock import patch
     from io import StringIO
 
-from hazards import Hazards
+from hazards import Hazards, HazardsFile
 from hazards import commandline
+
+from . import fixtures
 
 la_url = 'ftp://tgftp.nws.noaa.gov/data/watches_warnings/thunderstorm/la/lac025.txt'
 
@@ -24,11 +26,32 @@ class TestHazards(unittest.TestCase):
             txt = page.read()
         return txt
 
+    def test_basic_svs(self):
+        hzf = HazardsFile(fixtures.severe_thunderstorm_file)
+
+        self.assertEqual(len(hzf), 68)
+        with self.assertRaises(KeyError):
+            hzf[69]
+
+        actual = hzf[0].header
+        expected = ('A SEVERE THUNDERSTORM WARNING REMAINS IN EFFECT UNTIL '
+                    '530 PM EDT FOR NORTHEASTERN BEAVER AND SOUTH CENTRAL '
+                    'LAWRENCE COUNTIES')
+        self.assertEqual(actual, expected)
+
+        self.assertEqual(hzf[0].stop_time, dt.datetime(2015, 6, 21, 21, 30, 0))
+
+        actual = hzf[0].wkt
+        expected = ('POLYGON((80.43 40.84, 80.32 40.89, 80.16 40.83, '
+                    '80.15 40.69, 80.43 40.84))')
+        self.assertEqual(actual, expected)
+
     def test_hzdump(self):
         with patch('sys.argv', new=['', la_url]):
             with patch('sys.stdout', new=StringIO()):
                 commandline.hzdump()
 
+    @unittest.skip
     def test_thunderstorm(self):
         txt = self.get_data(la_url)
         hz = Hazards(txt)
