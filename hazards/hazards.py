@@ -33,6 +33,88 @@ _TIMEZONES = {
     "CHST": 10
 }
 
+_PRODUCT_CLASS = {
+    'O':  'Operational product',
+    'T':  'Test product',
+    'E':  'Experimental product',
+    'X':  'Experimental VTEC in Operational product',
+}
+
+_ACTION_CODE = {
+    'NEW':  'New event',
+    'CON':  'Event continued',
+    'EXT':  'Event extended (time)',
+    'EXA':  'Event extended (area)',
+    'EXB':  'Event extended (both time and area)',
+    'UPG':  'Event upgraded',
+    'CAN':  'Event cancelled',
+    'EXP':  'Event expiring',
+    'COR':  'Correction',
+    'ROU':  'Routine',
+}
+
+_SIGNIFICANCE = {
+    'W':  'Warning',
+    'A':  'Watch',
+    'Y':  'Advisory',
+    'S':  'Statement',
+}
+
+_PHENOMENA = {
+    'BZ':  'Blizzard',
+    'WS':  'Water Storm',
+    'WW':  'Winter Weather',
+    'SN':  'Snow',
+    'HS':  'Heavy Snow',
+    'LE':  'Lake Effect Snow',
+    'LB':  'Lake Effect Snow & Blowing Snow',
+    'BS':  'Blowing/Drifting Snow',
+    'SB':  'Snow & Blowing Snow',
+    'IP':  'Sleet',
+    'HP':  'Heavy Sleet',
+    'ZR':  'Freezing Rain',
+    'IS':  'Ice Storm',
+    'FZ':  'Freeze',
+    'ZF':  'Freezing Fog',
+    'FR':  'Frost',
+    'WC':  'Wind Chill',
+    'EC':  'Extreme Cold',
+    'WI':  'Wind',
+    'HW':  'High Wind',
+    'LW':  'Lake Wind',
+    'FG':  'Dense Fog',
+    'SM':  'Dense Smoke',
+    'HT':  'Heat',
+    'EH':  'Excessive Heat',
+    'DU':  'Blowing Dust',
+    'DS':  'Dust Storm',
+    'FL':  'Flood',
+    'FF':  'Flash Flood',
+    'SV':  'Severe Thunderstorm',
+    'TO':  'Tornado',
+    'FW':  'Fire Weather (RFW, FWW)',
+    'RH':  'Radiological Hazard',
+    'VO':  'Volcano',
+    'AF':  'Volcanic Ashfall',
+    'AS':  'Air Stagnation',
+    'AV':  'Avalanche', 
+    'TS':  'Tsunami',
+    'MA':  'Marine',
+    'SC':  'Small Craft',
+    'GL':  'Gale',
+    'SR':  'Storm',
+    'HF':  'Hurricane Force Winds',
+    'TR':  'Tropical Storm',
+    'HU':  'Hurricane',
+    'TY':  'Typhoon',
+    'TI':  'Inland Tropical Storm Wind',
+    'HI':  'Inland Hurricane Wind',
+    'LS':  'Lakeshore Flood',
+    'CF':  'Coastal Flood',
+    'UP':  'Ice Accretion',
+    'LO':  'Low Water',
+    'SU':  'High Surf',
+}
 
 class HazardsFile(object):
     """
@@ -58,6 +140,12 @@ class HazardsFile(object):
         regex = re.compile(r'''\d{3}\s+(?=WWUS\d\d)''')
         for message in regex.split(txt)[1:]:
             self._items.append(HazardMessage(message))
+
+    def __iter__(self):
+        """
+        Implements iterator protocol.
+        """
+        return iter(self._items)
 
     def __len__(self):
         """
@@ -98,58 +186,94 @@ class HazardMessage(object):
             File for filename to read.
         """
         self._message = txt
-        self.hazard_header = None
-        self.expires = None
-        self.issuance_time = None
+        self.header = None
         self.polygon = []
         self.wkt = None
 
         self.parse_hazard_header()
-        self.parse_time()
+        self.parse_vtec_code()
         self.parse_polygon()
         self.create_wkt()
 
     def __str__(self):
 
-        fmt = 'Hazard:  {}\n'
-        fmt += 'Expires:  {}\n'
-        fmt += 'Issued:  {}\n'
-        fmt += 'WKT:  {}'
+        lst = ['Hazard: {}', 'Product: {}', 'Action: {}', 'Office: {}',
+               'Phenomena: {}', 'Significance: {}',
+               'Event Tracking Number: {}', 'Beginning Time: {}',
+               'Ending Time: {}', 'Well known text: {}']
+        fmt = '\n'.join(lst)
 
-        txt = fmt.format(self.hazard_text,
-                         self.expires,
-                         self.issuance_time,
+        txt = fmt.format(self.header,
+                         _PRODUCT_CLASS[self.product],
+                         _ACTION_CODE[self.action],
+                         self.office_id,
+                         _PHENOMENA[self.phenomena],
+                         _SIGNIFICANCE[self.significance],
+                         self.event_tracking_number,
+                         self.beginning_time, self.ending_time,
                          self.wkt)
         return txt
 
-    def parse_time(self):
+    def parse_vtec_code(self):
         """
-        Parse the timestamps from the message.
+        Parse the VTEC string from the message.
 
         Look for text that looks something like 
 
         /O.CON.KPBZ.SV.W.0094.000000T0000Z-150621T2130Z
+
+        The general format is
+
+        /k.aaa.cccc.pp.s.####.yymmddThhnnZ-yymmddThhnnZ
+
+        where:
+
+            k : project class
+            aaa : action code 
+            cccc : office ID
+            pp : phenomenon
+            s : significance
+            #### : event ID
+            yymmddThhnnZ : UTC time
 
         Parameters
         ----------
         txt : str
             Content of message.
         """
-        regex = re.compile(r'''\/O\.\w{3}\.\w{4}\.SV\.\w\.\d{4}\.
-                               (?P<start>\d{6}T\d{4}Z)-
-                               (?P<stop>\d{6}T\d{4}Z)''', re.VERBOSE)
+        regex = re.compile(r'''\/
+                           (?P<product_class>\w)\.
+                           (?P<action_code>\w{3})\.
+                           (?P<office_id>\w{4})\.
+                           (?P<phenomena>\w{2})\.
+                           (?P<significance>\w)\.
+                           (?P<event_tracking_number>\d{4})\.
+                           (?P<start>\d{6}T\d{4}Z)-
+                           (?P<stop>\d{6}T\d{4}Z)
+                           ''', re.VERBOSE)
 
         m = regex.search(self._message)
+        if m is None:
+            raise RuntimeError('Unable to parse VTEC code.')
+
+        self.product = m.groupdict()['product_class']
+        self.action = m.groupdict()['action_code']
+        self.office_id = m.groupdict()['office_id']
+        self.phenomena = m.groupdict()['phenomena']
+        self.significance = m.groupdict()['significance']
+        evt = int(m.groupdict()['event_tracking_number'])
+        self.event_tracking_number = evt
 
         if m.groupdict()['start'] == '000000T0000Z':
-            self.start_time = None
+            self.beginning_time = None
         else:
             year = 2000 + int(m.groupdict()['start'][0:2])
             month = int(m.groupdict()['start'][2:4])
             day = int(m.groupdict()['start'][4:6])
             hour = int(m.groupdict()['start'][7:9])
             minute = int(m.groupdict()['start'][9:11])
-            self.start_time = dt.datetime(year, month, day, hour, minute, 0)
+            the_time = dt.datetime(year, month, day, hour, minute, 0)
+            self.beginning_time = the_time
 
         year = 2000 + int(m.groupdict()['stop'][0:2])
         month = int(m.groupdict()['stop'][2:4])
@@ -158,7 +282,8 @@ class HazardMessage(object):
         minute = int(m.groupdict()['stop'][9:11])
         stop_time = dt.datetime(year, month, day, hour, minute, 0)
 
-        self.stop_time = dt.datetime(year, month, day, hour, minute, 0)
+        ending_time = dt.datetime(year, month, day, hour, minute, 0)
+        self.ending_time = ending_time
 
     def create_wkt(self):
         """

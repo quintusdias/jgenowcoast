@@ -39,11 +39,23 @@ class TestHazards(unittest.TestCase):
                     'LAWRENCE COUNTIES')
         self.assertEqual(actual, expected)
 
-        self.assertEqual(hzf[0].stop_time, dt.datetime(2015, 6, 21, 21, 30, 0))
+        self.assertEqual(hzf[0].ending_time,
+                         dt.datetime(2015, 6, 21, 21, 30, 0))
 
         actual = hzf[0].wkt
         expected = ('POLYGON((80.43 40.84, 80.32 40.89, 80.16 40.83, '
                     '80.15 40.69, 80.43 40.84))')
+        self.assertEqual(actual, expected)
+
+    def test_basic_print(self):
+        """
+        Verify that printing a bulletin works as expected.
+        """
+        hzf = HazardsFile(fixtures.severe_thunderstorm_file)
+        with patch('sys.stdout', new=StringIO()) as fake_out:
+            print(hzf[0])
+            actual = fake_out.getvalue().strip()
+        expected = fixtures.tstorm_warning_txt
         self.assertEqual(actual, expected)
 
     def test_hzdump(self):
@@ -51,7 +63,7 @@ class TestHazards(unittest.TestCase):
             with patch('sys.stdout', new=StringIO()):
                 commandline.hzdump()
 
-    @unittest.skip
+    @unittest.skip('probably do not need')
     def test_thunderstorm(self):
         txt = self.get_data(la_url)
         hz = Hazards(txt)
