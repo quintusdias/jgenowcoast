@@ -135,12 +135,19 @@ class HazardsFile(object):
         else:
             txt = fname
 
-        # Split the text into separate messages.
-        # Use lookahead to preserve information.
-        # The first item split off is not a "message".
-        regex = re.compile(r'''\d{3}\s+(?=WWUS\d\d)''')
-        for message in regex.split(txt)[1:]:
-            self._items.append(HazardMessage(message))
+        # Split the text into separate messages.  "$$" seems to be a delimeter
+        # that gives us all the messages.  The last item split off is not
+        # a valid message, though.
+        regex = re.compile(r'''\$\$''')
+	items = []
+	vtec_codes = []
+        for text_item in regex.split(txt)[0:-1]:
+            message = HazardMessage(text_item)
+	    if message._vtec_code not in vtec_codes:
+	        items.append(message)
+		vtec_codes.append(message._vtec_code)
+
+	self._items = items
 
     def __iter__(self):
         """
@@ -295,6 +302,9 @@ class HazardMessage(object):
         m = regex.search(self._message)
         if m is None:
             raise RuntimeError('Unable to parse VTEC code.')
+
+	idx = slice(m.span()[0], m.span()[1])
+	self._vtec_code = self._message[idx]
 
         self.product = m.groupdict()['product_class']
         self.action = m.groupdict()['action_code']

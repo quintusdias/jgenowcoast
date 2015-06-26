@@ -29,9 +29,9 @@ class TestHazards(unittest.TestCase):
     def test_basic_svs(self):
         hzf = HazardsFile(fixtures.severe_thunderstorm_file)
 
-        self.assertEqual(len(hzf), 68)
+        self.assertEqual(len(hzf), 36)
         with self.assertRaises(KeyError):
-            hzf[69]
+            hzf[36]
 
         actual = hzf[0].header
         expected = ('A SEVERE THUNDERSTORM WARNING REMAINS IN EFFECT UNTIL '
