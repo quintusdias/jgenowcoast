@@ -18,3 +18,8 @@ Event Tracking Number: 94
 Beginning Time: None
 Ending Time: 2015-06-21 21:30:00
 Well known text: POLYGON((80.43 40.84, 80.32 40.89, 80.16 40.83, 80.15 40.69, 80.43 40.84))"""
+
+# Example of summary with a single quote character.
+relpath = os.path.join('data', 'severe', '2015062722.severe')
+summary_with_quote = pkg.resource_filename(__name__, relpath)
+

@@ -26,6 +26,12 @@ class TestHazards(unittest.TestCase):
             txt = page.read()
         return txt
 
+    def test_summary_with_quote(self):
+        """
+        Should be able to find summaries that contain quote characters.
+        """
+        hzf = HazardsFile(fixtures.summary_with_quote)
+
     def test_basic_svs(self):
         hzf = HazardsFile(fixtures.severe_thunderstorm_file)
 

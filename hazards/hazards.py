@@ -392,12 +392,15 @@ class HazardMessage(object):
         # The message can contain the "..." pattern, but the end of the
         # message must be terminated by "..." followed by at least two
         # end-of-line characters.
-        regex = re.compile(r'''(\r\n|\r|\n){2,}
+        regex = re.compile(r'''(\s|\r|\n){2,}
                                \.\.\.
-                               (?P<header>[0-9\w\s\./]*?)
+                               (?P<header>[0-9\w\s\./\']*?)
                                \.\.\.
-                               (\r\n|\r|\n){2,}''', re.VERBOSE)
+                               (\s|\r|\n){2,}''', re.VERBOSE)
         m = regex.search(self._message)
+        if m is None:
+            import pdb; pdb.set_trace()
+            raise RuntimeError('Unable to parse hazard summary')
         raw_header = m.groupdict()['header']
 
         # Replace any sequence of newlines with just a space.
