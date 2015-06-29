@@ -1,7 +1,6 @@
 from contextlib import closing
 import datetime as dt
 import os
-import pkg_resources as pkg
 import sys
 import unittest
 import urllib
@@ -14,11 +13,9 @@ else:
     from io import StringIO
 
 from hazards import HazardsFile
-from hazards import commandline
 
 from . import fixtures
 
-la_url = 'ftp://tgftp.nws.noaa.gov/data/watches_warnings/thunderstorm/la/lac025.txt'
 
 class TestHazards(unittest.TestCase):
     """
@@ -38,7 +35,6 @@ class TestHazards(unittest.TestCase):
                      'svrlcl', 'torn_warn', 'tstrm_warn', 'wcn', 'winter']:
             print(kind)
             path = os.path.join('tests', 'data', 'watch_warn', kind)
-            lst = os.listdir(path)
             for item in os.listdir(path):
                 filename = os.path.join(path, item)
                 print(filename)
@@ -48,16 +44,18 @@ class TestHazards(unittest.TestCase):
                         action_lst.append((filename, h.action))
         print(action_lst)
 
-    def test_hurricane_warning_with_no_ending_time(self):
-        path = os.path.join('tests', 'data', 'hurr_lcl', '2015050804.hurr')
+    def test_hurricane_warning_with_no_times_in_vtec_code(self):
+        path = os.path.join('tests', 'data', 'hurr_lcl', '2015050805.hurr')
         hzf = HazardsFile(path)
+        self.assertEqual(hzf[0].base_date, dt.datetime(2015, 5, 8, 5, 0, 0))
+        self.assertIsNone(hzf[0].beginning_time)
         self.assertIsNone(hzf[0].ending_time)
 
     def test_summary_with_quote(self):
         """
         Should be able to find summaries that contain quote characters.
         """
-        hzf = HazardsFile(fixtures.summary_with_quote)
+        HazardsFile(fixtures.summary_with_quote)
 
     def test_basic_svs(self):
         hzf = HazardsFile(fixtures.severe_thunderstorm_file)
@@ -93,63 +91,6 @@ class TestHazards(unittest.TestCase):
             actual = fake_out.getvalue().strip()
         expected = fixtures.tstorm_warning_txt
         self.assertEqual(actual, expected)
-
-    @unittest.skip('Do not bother with earlier hazards implementation')
-    def test_hzdump(self):
-        with patch('sys.argv', new=['', la_url]):
-            with patch('sys.stdout', new=StringIO()):
-                commandline.hzdump()
-
-    @unittest.skip('probably do not need')
-    def test_thunderstorm(self):
-        txt = self.get_data(la_url)
-        hz = Hazards(txt)
-
-        expected = ('SEVERE THUNDERSTORM WARNING FOR SOUTHERN FRANKLIN PARISH '
-                    'IN NORTHEASTERN LOUISIANA CATAHOULA PARISH IN '
-                    'NORTHEASTERN LOUISIANA')
-        self.assertEqual(hz.hazard_text, expected)
-
-        self.assertEqual(hz.expires, dt.datetime(2015, 5, 26, 5, 0, 0))
-        self.assertEqual(hz.issuance_time, dt.datetime(2015, 5, 26, 4, 15, 0))
-        self.assertEqual(hz.polygon,
-                         [(92.01, 31.93), (91.91, 31.93), (91.9, 32.0),
-                          (91.49, 32.09), (91.58, 31.87), (91.56, 31.73),
-                          (91.59, 31.76), (91.64, 31.73), (91.69, 31.74),
-                          (91.71, 31.67), (91.82, 31.6), (91.8, 31.49),
-                          (91.84, 31.5), (91.87, 31.34), (91.83, 31.27),
-                          (91.93, 31.3), (91.95, 31.27), (91.92, 31.23),
-                          (91.99, 31.23)])
-        expected = ('POLYGON((92.01 31.93, 91.91 31.93, 91.9 32.0, '
-                    '91.49 32.09, 91.58 31.87, 91.56 31.73, 91.59 31.76, '
-                    '91.64 31.73, 91.69 31.74, 91.71 31.67, 91.82 31.6, '
-                    '91.8 31.49, 91.84 31.5, 91.87 31.34, 91.83 31.27, '
-                    '91.93 31.3, 91.95 31.27, 91.92 31.23, 91.99 31.23, '
-                    '92.01 31.93))')
-        self.assertEqual(hz.wkt, expected)
-
-    @unittest.skip('Do not bother with earlier hazards implementation')
-    def test_ga029(self):
-        url = 'ftp://tgftp.nws.noaa.gov/data/watches_warnings/tornado/ga/gac029.txt'
-        txt = self.get_data(url)
-        hz = Hazards(txt)
-        self.assertEqual(hz.expires, dt.datetime(2014, 8, 1, 20, 0, 0))
-
-        expected = ('TORNADO WARNING FOR PORTIONS OF LIBERTY COUNTY IN '
-                    'SOUTHEAST GEORGIA BRYAN COUNTY IN SOUTHEAST GEORGIA '
-                    'MCINTOSH COUNTY IN SOUTHEAST GEORGIA')
-        self.assertEqual(hz.hazard_text, expected)
-
-        self.assertEqual(hz.issuance_time, dt.datetime(2014, 8, 1, 19, 18, 0))
-        self.assertEqual(hz.polygon,
-                         [(81.35, 31.59), (81.39, 31.67), (81.22, 31.74),
-                          (81.19, 31.72), (81.17, 31.71), (81.15, 31.69),
-                          (81.13, 31.66), (81.13, 31.63), (81.13, 31.62),
-                          (81.14, 31.6)])
-        expected = ('POLYGON((81.35 31.59, 81.39 31.67, 81.22 31.74, '
-                    '81.19 31.72, 81.17 31.71, 81.15 31.69, 81.13 31.66, '
-                    '81.13 31.63, 81.13 31.62, 81.14 31.6, 81.35 31.59))')
-        self.assertEqual(hz.wkt, expected)
 
 
 if __name__ == '__main__':

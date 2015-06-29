@@ -5,6 +5,9 @@ Fixtures for hazards testing.
 import os
 import pkg_resources as pkg
 
+la_url = ('ftp://tgftp.nws.noaa.gov/data/watches_warnings/thunderstorm/la/'
+          'lac025.txt')
+
 relpath = os.path.join('data', 'severe', '2015062121.severe')
 severe_thunderstorm_file = pkg.resource_filename(__name__, relpath)
 
