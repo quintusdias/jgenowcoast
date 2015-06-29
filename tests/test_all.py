@@ -1,5 +1,7 @@
 from contextlib import closing
 import datetime as dt
+import os
+import pkg_resources as pkg
 import sys
 import unittest
 import urllib
@@ -11,7 +13,7 @@ else:
     from unittest.mock import patch
     from io import StringIO
 
-from hazards import Hazards, HazardsFile
+from hazards import HazardsFile
 from hazards import commandline
 
 from . import fixtures
@@ -25,6 +27,31 @@ class TestHazards(unittest.TestCase):
         with closing(urllib.urlopen(url)) as page:
             txt = page.read()
         return txt
+
+    @unittest.skip('not now')
+    def test_full_directory(self):
+        """
+        Should be able to read an entire directory of statements.
+        """
+        action_lst = []
+        for kind in ['hurr_lcl', 'noprcp', 'severe', 'special', 'state_summ',
+                     'svrlcl', 'torn_warn', 'tstrm_warn', 'wcn', 'winter']:
+            print(kind)
+            path = os.path.join('tests', 'data', 'watch_warn', kind)
+            lst = os.listdir(path)
+            for item in os.listdir(path):
+                filename = os.path.join(path, item)
+                print(filename)
+                hzf = HazardsFile(filename)
+                for h in hzf:
+                    if h.action == 'NEW':
+                        action_lst.append((filename, h.action))
+        print(action_lst)
+
+    def test_hurricane_warning_with_no_ending_time(self):
+        path = os.path.join('tests', 'data', 'hurr_lcl', '2015050804.hurr')
+        hzf = HazardsFile(path)
+        self.assertIsNone(hzf[0].ending_time)
 
     def test_summary_with_quote(self):
         """
@@ -67,6 +94,7 @@ class TestHazards(unittest.TestCase):
         expected = fixtures.tstorm_warning_txt
         self.assertEqual(actual, expected)
 
+    @unittest.skip('Do not bother with earlier hazards implementation')
     def test_hzdump(self):
         with patch('sys.argv', new=['', la_url]):
             with patch('sys.stdout', new=StringIO()):
@@ -100,6 +128,7 @@ class TestHazards(unittest.TestCase):
                     '92.01 31.93))')
         self.assertEqual(hz.wkt, expected)
 
+    @unittest.skip('Do not bother with earlier hazards implementation')
     def test_ga029(self):
         url = 'ftp://tgftp.nws.noaa.gov/data/watches_warnings/tornado/ga/gac029.txt'
         txt = self.get_data(url)
