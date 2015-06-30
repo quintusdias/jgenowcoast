@@ -260,13 +260,15 @@ class HazardMessage(object):
         #
         # The 2nd element can be present or not, and there can be at least as
         # many items as there are states.
-        regex = re.compile(r'''(\w{3})((\d{3})-|>){1,}
+        regex = re.compile(r'''(\w{3}(\d{3}((-|>)(\r\n)?))+)+
                                (?P<day>\d{2})
                                (?P<hour>\d{2})
                                (?P<minute>\d{2})-
-                               ''', re.VERBOSE)
+                            ''', re.VERBOSE)
+
         m = regex.search(self._message)
         if m is None:
+            import ipdb; ipdb.set_trace()
             raise RuntimeError("Could not parse expiration time.")
 
         self.expiration_time = dt.datetime(self.base_date.year,
@@ -393,12 +395,10 @@ class HazardMessage(object):
                                (?=TIME)""", re.VERBOSE)
         m = regex.search(self._message)
         if m is None:
-            if self.phenomena in ['TR', 'HT']:
-                msg = 'No lat/lon polygon detected for {} advisory'
-                warnings.warn(msg.format(_PHENOMENA[self.phenomena]))
-                self.polygon = None
-                return
-            raise RuntimeError('Failed')
+            msg = 'No lat/lon polygon detected for {} advisory'
+            warnings.warn(msg.format(_PHENOMENA[self.phenomena]))
+            self.polygon = None
+            return
 
         latlon_txt = m.group('latlon').replace('\n', ' ')
         nums = np.genfromtxt(StringIO(unicode(latlon_txt)))
@@ -420,11 +420,12 @@ class HazardMessage(object):
         # end-of-line characters.
         regex = re.compile(r'''(\s|\r|\n){2,}
                                \.\.\.
-                               (?P<header>[0-9\w\s\./\']*?)
+                               (?P<header>[0-9\w\s\./\'-]*?)
                                \.\.\.
                                (\s|\r|\n){2,}''', re.VERBOSE)
         m = regex.search(self._message)
         if m is None:
+            import ipdb; ipdb.set_trace()
             raise RuntimeError('Unable to parse hazard summary')
         raw_header = m.groupdict()['header']
 

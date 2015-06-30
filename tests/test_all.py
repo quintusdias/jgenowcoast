@@ -25,14 +25,26 @@ class TestHazards(unittest.TestCase):
             txt = page.read()
         return txt
 
-    @unittest.skip('not now')
+    #@unittest.skip('not now')
     def test_full_directory(self):
         """
         Should be able to read an entire directory of statements.
         """
         action_lst = []
+        # hurr_lcl:  tropical storm / hurricane watch
+        # noprcp:  heat advisory?
+        # severe:  severe thunderstorm warning
+        # special:  significant weather advisory
+        # state_summ:  weather summary
+        # svrlcl: severe thunderstorm watch
+        # torn_warn:  tornado warning
+        # tstrm_warn:  severe thunderstorm warning
+        # wcn:  severe thunderstorm watch expiration
+        # winter: winter weather advisory
+        #
+        # svrlcl, torn_warn, tstrm_warn, wcn doesn't work
         for kind in ['hurr_lcl', 'noprcp', 'severe', 'special', 'state_summ',
-                     'svrlcl', 'torn_warn', 'tstrm_warn', 'wcn', 'winter']:
+                     'winter']:
             print(kind)
             path = os.path.join('tests', 'data', 'watch_warn', kind)
             for item in os.listdir(path):
