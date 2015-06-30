@@ -44,6 +44,17 @@ class TestHazards(unittest.TestCase):
                         action_lst.append((filename, h.action))
         print(action_lst)
 
+    def test_parse_ugc(self):
+        """
+        Possible UGC lines are
+
+        GAZ087-088-099>101-114>119-137>141-SCZ040-042>045-047>052-242200-
+        """
+        path = os.path.join('tests', 'data', 'noprcp', '2015062413.noprcp')
+        hzf = HazardsFile(path)
+        self.assertEqual(hzf[0].expiration_time,
+                         dt.datetime(2015, 6, 24, 22, 0, 0))
+
     def test_hurricane_warning_with_no_times_in_vtec_code(self):
         path = os.path.join('tests', 'data', 'hurr_lcl', '2015050805.hurr')
         hzf = HazardsFile(path)

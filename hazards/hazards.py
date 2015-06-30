@@ -221,7 +221,7 @@ class HazardMessage(object):
 
         self.parse_vtec_code()
         self.parse_hazard_header()
-        self.parse_expiration()
+        self.parse_ugc_expiration()
         self.parse_polygon()
         self.create_wkt()
 
@@ -244,19 +244,15 @@ class HazardMessage(object):
                          self.wkt)
         return txt
 
-    def parse_expiration(self):
+    def parse_ugc_expiration(self):
         """
-        Parse the product expiration time.
+        Parse the UGC and product expiration time.
 
-        If the P-VTEC string looks something like what's below...
+        Examples of the UGC line might look like
 
             PAC007-073-212130-
-            /O.CON.KPBZ.SV.W.0094.000000T0000Z-150621T2130Z/
-            BEAVER PA-LAWRENCE PA-
-            503 PM EDT SUN JUN 21 2015
+            GAZ087-088-099>101-114>119-137>141-SCZ040-042>045-047>052-242200-
 
-        the product expiration is at 21:30 on the 21st.  The expiration date
-        should be parsed after the VTEC code.
         """
 
         # The event can cross states, so that part can consist of one or more
@@ -264,12 +260,11 @@ class HazardMessage(object):
         #
         # The 2nd element can be present or not, and there can be at least as
         # many items as there are states.
-        regex = re.compile(r'''
-                            (\w{2}\w\d{3}-)+(\d\d\d-)*
-                            (?P<day>\d{2})
-                            (?P<hour>\d{2})
-                            (?P<minute>\d{2})-
-                            ''', re.VERBOSE)
+        regex = re.compile(r'''(\w{3})((\d{3})-|>){1,}
+                               (?P<day>\d{2})
+                               (?P<hour>\d{2})
+                               (?P<minute>\d{2})-
+                               ''', re.VERBOSE)
         m = regex.search(self._message)
         if m is None:
             raise RuntimeError("Could not parse expiration time.")
@@ -398,8 +393,9 @@ class HazardMessage(object):
                                (?=TIME)""", re.VERBOSE)
         m = regex.search(self._message)
         if m is None:
-            if self.phenomena == 'TR':
-                warnings.warn('No lat/lon polygon detected for tropical storm')
+            if self.phenomena in ['TR', 'HT']:
+                msg = 'No lat/lon polygon detected for {} advisory'
+                warnings.warn(msg.format(_PHENOMENA[self.phenomena]))
                 self.polygon = None
                 return
             raise RuntimeError('Failed')
