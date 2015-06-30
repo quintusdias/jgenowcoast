@@ -44,7 +44,7 @@ class TestHazards(unittest.TestCase):
         #
         # svrlcl, torn_warn, tstrm_warn, wcn doesn't work
         for kind in ['hurr_lcl', 'noprcp', 'severe', 'special', 'state_summ',
-                     'winter']:
+                     'torn_warn', 'winter']:
             print(kind)
             path = os.path.join('tests', 'data', 'watch_warn', kind)
             for item in os.listdir(path):

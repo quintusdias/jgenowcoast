@@ -117,6 +117,29 @@ _PHENOMENA = {
     'SU':  'High Surf',
 }
 
+# The general format is
+# 
+# /k.aaa.cccc.pp.s.####.yymmddThhnnZ-yymmddThhnnZ
+# 
+# where:
+# 
+# k : project class
+# aaa : action code
+# cccc : office ID
+# pp : phenomenon
+# s : significance
+# #### : event ID
+# yymmddThhnnZ : UTC time
+vtec_regex = re.compile(r'''\/
+                            (?P<product_class>\w)\.
+                            (?P<action_code>\w{3})\.
+                            (?P<office_id>\w{4})\.
+                            (?P<phenomena>\w{2})\.
+                            (?P<significance>\w)\.
+                            (?P<event_tracking_number>\d{4})\.
+                            (?P<start>\d{6}T\d{4}Z)-
+                            (?P<stop>\d{6}T\d{4}Z)
+                         ''', re.VERBOSE)
 
 class NoVtecCodeException(Exception):
     pass
@@ -287,37 +310,12 @@ class HazardMessage(object):
 
         /O.CON.KPBZ.SV.W.0094.000000T0000Z-150621T2130Z
 
-        The general format is
-
-        /k.aaa.cccc.pp.s.####.yymmddThhnnZ-yymmddThhnnZ
-
-        where:
-
-            k : project class
-            aaa : action code
-            cccc : office ID
-            pp : phenomenon
-            s : significance
-            #### : event ID
-            yymmddThhnnZ : UTC time
-
         Parameters
         ----------
         txt : str
             Content of message.
         """
-        regex = re.compile(r'''\/
-                           (?P<product_class>\w)\.
-                           (?P<action_code>\w{3})\.
-                           (?P<office_id>\w{4})\.
-                           (?P<phenomena>\w{2})\.
-                           (?P<significance>\w)\.
-                           (?P<event_tracking_number>\d{4})\.
-                           (?P<start>\d{6}T\d{4}Z)-
-                           (?P<stop>\d{6}T\d{4}Z)
-                           ''', re.VERBOSE)
-
-        m = regex.search(self._message)
+        m = vtec_regex.search(self._message)
         if m is None:
             raise NoVtecCodeException()
 
@@ -424,10 +422,33 @@ class HazardMessage(object):
                                \.\.\.
                                (\s|\r|\n){2,}''', re.VERBOSE)
         m = regex.search(self._message)
-        if m is None:
-            import ipdb; ipdb.set_trace()
-            raise RuntimeError('Unable to parse hazard summary')
-        raw_header = m.groupdict()['header']
+        if m is not None:
+            raw_header = m.groupdict()['header']
 
-        # Replace any sequence of newlines with just a space.
-        self.header = re.sub('(\r|\n){2,}', ' ', raw_header)
+            # Replace any sequence of newlines with just a space.
+            self.header = re.sub('(\r|\n){2,}', ' ', raw_header)
+            return
+
+        if self.phenomena == 'TO':
+            # Tornado warning
+            # These headers do not seem to have leading and trailing "..."
+            # sentinals around the header.
+            #
+            # Split the message by paragraphs, take all those following the
+            # VTEC code stanza.
+            lst = re.split(r'''(?:\r\n){2,}''', self._message)
+            header_lst = []
+            past_vtec = False
+            for stanza in lst:
+                if past_vtec:
+                    if '&&' not in stanza:
+                        header_lst.append(stanza)
+                        continue
+                if vtec_regex.search(stanza) is not None:
+                    past_vtec = True
+                    continue
+            
+            self.header = '\n'.join(header_lst)
+            return
+
+        raise RuntimeError('Unable to parse hazard summary')
