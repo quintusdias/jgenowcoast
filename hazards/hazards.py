@@ -118,11 +118,11 @@ _PHENOMENA = {
 }
 
 # The general format is
-# 
+#
 # /k.aaa.cccc.pp.s.####.yymmddThhnnZ-yymmddThhnnZ
-# 
+#
 # where:
-# 
+#
 # k : project class
 # aaa : action code
 # cccc : office ID
@@ -140,6 +140,7 @@ vtec_regex = re.compile(r'''\/
                             (?P<start>\d{6}T\d{4}Z)-
                             (?P<stop>\d{6}T\d{4}Z)
                          ''', re.VERBOSE)
+
 
 class NoVtecCodeException(Exception):
     pass
@@ -291,14 +292,30 @@ class HazardMessage(object):
 
         m = regex.search(self._message)
         if m is None:
-            import ipdb; ipdb.set_trace()
             raise RuntimeError("Could not parse expiration time.")
 
-        self.expiration_time = dt.datetime(self.base_date.year,
-                                           self.base_date.month,
-                                           int(m.groupdict()['day']),
-                                           int(m.groupdict()['hour']),
-                                           int(m.groupdict()['minute']), 0)
+        exp_day = int(m.groupdict()['day'])
+        exp_hour = int(m.groupdict()['hour'])
+        exp_minute = int(m.groupdict()['minute'])
+        if exp_day < self.base_date.day:
+            if self.base_date.month == 12:
+                # Beginning of next year
+                year = self.base_date.year + 1
+                self.expiration_time = dt.datetime(year, 1,
+                                                   exp_day, exp_hour,
+                                                   exp_minute, 0)
+            else:
+                # Beginning of next month
+                year = self.base_date.year
+                month = self.base_date.month + 1
+                self.expiration_time = dt.datetime(year, month,
+                                                   exp_day, exp_hour,
+                                                   exp_minute, 0)
+        else:
+            self.expiration_time = dt.datetime(self.base_date.year,
+                                               self.base_date.month,
+                                               exp_day, exp_hour,
+                                               exp_minute, 0)
 
         assert self.expiration_time > self.base_date
 
@@ -447,7 +464,7 @@ class HazardMessage(object):
                 if vtec_regex.search(stanza) is not None:
                     past_vtec = True
                     continue
-            
+
             self.header = '\n'.join(header_lst)
             return
 

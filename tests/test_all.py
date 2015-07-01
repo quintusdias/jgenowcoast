@@ -56,6 +56,12 @@ class TestHazards(unittest.TestCase):
                         action_lst.append((filename, h.action))
         print(action_lst)
 
+    def test_expiration_date_exceeding_file_date(self):
+        path = os.path.join('tests', 'data', 'noprcp', '2015063017.noprcp')
+        hzf = HazardsFile(path)
+        self.assertEqual(hzf[0].expiration_time,
+                         dt.datetime(2015, 7, 1, 3, 0, 0))
+
     def test_parse_ugc(self):
         """
         Possible UGC lines are
