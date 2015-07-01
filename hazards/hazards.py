@@ -446,7 +446,7 @@ class HazardMessage(object):
             self.header = re.sub('(\r|\n){2,}', ' ', raw_header)
             return
 
-        if self.phenomena == 'TO':
+        if self.phenomena in ['SV', 'TO']:
             # Tornado warning
             # These headers do not seem to have leading and trailing "..."
             # sentinals around the header.
@@ -468,4 +468,6 @@ class HazardMessage(object):
             self.header = '\n'.join(header_lst)
             return
 
-        raise RuntimeError('Unable to parse hazard summary')
+        msg = 'Unable to parse hazard summary, phenomena = {}'
+        msg = msg.format(self.phenomena)
+        raise RuntimeError(msg)
