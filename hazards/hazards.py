@@ -1,14 +1,14 @@
+from collections import namedtuple
 import copy
 import datetime as dt
 import os
 import re
 import sys
-import warnings
-
 if sys.hexversion < 0x030000:
     from StringIO import StringIO
 else:
     from io import StringIO
+import warnings
 
 import numpy as np
 
@@ -130,16 +130,24 @@ _PHENOMENA = {
 # s : significance
 # #### : event ID
 # yymmddThhnnZ : UTC time
-vtec_regex = re.compile(r'''\/
-                            (?P<product_class>\w)\.
-                            (?P<action_code>\w{3})\.
-                            (?P<office_id>\w{4})\.
-                            (?P<phenomena>\w{2})\.
-                            (?P<significance>\w)\.
-                            (?P<event_tracking_number>\d{4})\.
-                            (?P<start>\d{6}T\d{4}Z)-
-                            (?P<stop>\d{6}T\d{4}Z)
-                         ''', re.VERBOSE)
+vtec_pattern = r'''\/
+                   (?P<product_class>\w)\.
+                   (?P<action_code>\w{3})\.
+                   (?P<office_id>\w{4})\.
+                   (?P<phenomena>\w{2})\.
+                   (?P<significance>\w)\.
+                   (?P<event_tracking_id>\d{4})\.
+                   (?P<start>\d{6}T\d{4}Z)-
+                   (?P<stop>\d{6}T\d{4}Z)
+                 '''
+vtec_regex = re.compile(vtec_pattern, re.VERBOSE)
+
+
+VtecCode = namedtuple('VtecCode', ['product', 'action', 'office_id',
+                                   'phenomena', 'significance',
+                                   'event_tracking_id',
+                                   'event_beginning_time',
+                                   'event_ending_time'])
 
 
 class NoVtecCodeException(Exception):
@@ -176,7 +184,7 @@ class HazardsFile(object):
         regex = re.compile(r'''\$\$''')
 
         items = []
-        vtec_codes = []
+        hash_list = []
         for text_item in regex.split(txt)[0:-1]:
             try:
                 message = HazardMessage(text_item, file_base_date)
@@ -184,9 +192,12 @@ class HazardsFile(object):
                 # If a hurricane file, just ignore it?
                 continue
 
-            if message._vtec_code not in vtec_codes:
-                items.append(message)
-            vtec_codes.append(message._vtec_code)
+            # Is this a repeat of the last message?
+            if message._hash in hash_list:
+                continue
+
+            hash_list.append(message._hash)
+            items.append(message)
 
         self._items = items
 
@@ -251,21 +262,33 @@ class HazardMessage(object):
 
     def __str__(self):
 
-        lst = ['Hazard: {}', 'Product: {}', 'Action: {}', 'Office: {}',
-               'Phenomena: {}', 'Significance: {}',
-               'Event Tracking Number: {}', 'Beginning Time: {}',
-               'Ending Time: {}', 'Well known text: {}']
+        # Hazard, WKT
+        lst = ['Product: {}', 'Action: {}', 'Office: {}', 'Phenomena: {}',
+               'Significance: {}', 'Event Tracking Number: {}',
+               'Beginning Time: {}', 'Ending Time: {}']
         fmt = '\n'.join(lst)
 
-        txt = fmt.format(self.header,
-                         _PRODUCT_CLASS[self.product],
-                         _ACTION_CODE[self.action],
-                         self.office_id,
-                         _PHENOMENA[self.phenomena],
-                         _SIGNIFICANCE[self.significance],
-                         self.event_tracking_number,
-                         self.beginning_time, self.ending_time,
-                         self.wkt)
+        vtec_strs = []
+        for vtec_code in self.vtec:
+            txt = fmt.format(_PRODUCT_CLASS[vtec_code.product],
+                             _ACTION_CODE[vtec_code.action],
+                             vtec_code.office_id,
+                             _PHENOMENA[vtec_code.phenomena],
+                             _SIGNIFICANCE[vtec_code.significance],
+                             vtec_code.event_tracking_id,
+                             vtec_code.event_beginning_time,
+                             vtec_code.event_ending_time)
+            vtec_strs.append(txt)
+
+        if len(vtec_strs) > 1:
+            vtec_strs.insert(0, '')
+            vtec_strs.append('')
+        all_vtecs = '\n=====\n'.join(vtec_strs)
+
+        lst = ['Hazard: {}', '{}', 'Well known text: {}']
+        fmt = '\n'.join(lst)
+        txt = fmt.format(self.header, all_vtecs, self.wkt)
+
         return txt
 
     def parse_ugc_expiration(self):
@@ -327,47 +350,55 @@ class HazardMessage(object):
 
         /O.CON.KPBZ.SV.W.0094.000000T0000Z-150621T2130Z
 
+        There can be more than one.
+
         Parameters
         ----------
         txt : str
             Content of message.
         """
-        m = vtec_regex.search(self._message)
-        if m is None:
+        self.vtec = []
+        self._vtec_codes = []
+
+        for m in vtec_regex.finditer(self._message):
+            self._vtec_codes.append(m.group())
+            if m.groupdict()['start'] == '000000T0000Z':
+                beginning_time = None
+            else:
+                year = 2000 + int(m.groupdict()['start'][0:2])
+                month = int(m.groupdict()['start'][2:4])
+                day = int(m.groupdict()['start'][4:6])
+                hour = int(m.groupdict()['start'][7:9])
+                minute = int(m.groupdict()['start'][9:11])
+                the_time = dt.datetime(year, month, day, hour, minute, 0)
+                beginning_time = the_time
+
+            if m.groupdict()['stop'] == '000000T0000Z':
+                ending_time = None
+            else:
+                year = 2000 + int(m.groupdict()['stop'][0:2])
+                month = int(m.groupdict()['stop'][2:4])
+                day = int(m.groupdict()['stop'][4:6])
+                hour = int(m.groupdict()['stop'][7:9])
+                minute = int(m.groupdict()['stop'][9:11])
+                ending_time = dt.datetime(year, month, day, hour, minute, 0)
+                ending_time = ending_time
+
+            gd = m.groupdict()
+            obj = VtecCode(product=gd['product_class'],
+                           action=gd['action_code'],
+                           office_id=gd['office_id'],
+                           phenomena=gd['phenomena'],
+                           significance=gd['significance'],
+                           event_tracking_id=int(gd['event_tracking_id']),
+                           event_beginning_time=beginning_time,
+                           event_ending_time=ending_time)
+            self.vtec.append(obj)
+
+        if len(self.vtec) == 0:
             raise NoVtecCodeException()
 
-        idx = slice(m.span()[0], m.span()[1])
-        self._vtec_code = self._message[idx]
-
-        self.product = m.groupdict()['product_class']
-        self.action = m.groupdict()['action_code']
-        self.office_id = m.groupdict()['office_id']
-        self.phenomena = m.groupdict()['phenomena']
-        self.significance = m.groupdict()['significance']
-        evt = int(m.groupdict()['event_tracking_number'])
-        self.event_tracking_number = evt
-
-        if m.groupdict()['start'] == '000000T0000Z':
-            self.beginning_time = None
-        else:
-            year = 2000 + int(m.groupdict()['start'][0:2])
-            month = int(m.groupdict()['start'][2:4])
-            day = int(m.groupdict()['start'][4:6])
-            hour = int(m.groupdict()['start'][7:9])
-            minute = int(m.groupdict()['start'][9:11])
-            the_time = dt.datetime(year, month, day, hour, minute, 0)
-            self.beginning_time = the_time
-
-        if m.groupdict()['stop'] == '000000T0000Z':
-            self.ending_time = None
-        else:
-            year = 2000 + int(m.groupdict()['stop'][0:2])
-            month = int(m.groupdict()['stop'][2:4])
-            day = int(m.groupdict()['stop'][4:6])
-            hour = int(m.groupdict()['stop'][7:9])
-            minute = int(m.groupdict()['stop'][9:11])
-            ending_time = dt.datetime(year, month, day, hour, minute, 0)
-            self.ending_time = ending_time
+        self._hash = hash(''.join(self._vtec_codes))
 
     def create_wkt(self):
         """
@@ -410,8 +441,7 @@ class HazardMessage(object):
                                (?=TIME)""", re.VERBOSE)
         m = regex.search(self._message)
         if m is None:
-            msg = 'No lat/lon polygon detected for {} advisory'
-            warnings.warn(msg.format(_PHENOMENA[self.phenomena]))
+            warnings.warn('No lat/lon polygon detected.')
             self.polygon = None
             return
 
@@ -446,7 +476,7 @@ class HazardMessage(object):
             self.header = re.sub('(\r|\n){2,}', ' ', raw_header)
             return
 
-        if self.phenomena in ['SV', 'TO']:
+        if self.vtec[0].phenomena in ['SV', 'TO']:
             # Tornado warning
             # These headers do not seem to have leading and trailing "..."
             # sentinals around the header.

@@ -52,11 +52,44 @@ class TestHazards(unittest.TestCase):
                 print(filename)
                 hzf = HazardsFile(filename)
                 for h in hzf:
-                    if h.action == 'NEW':
-                        action_lst.append((filename, h.action))
+                    for vtec in h.vtec:
+                        if vtec.action == 'NEW':
+                            action_lst.append((filename, vtec.action))
         print(action_lst)
 
+    def test_multiple_vtec_codes(self):
+        """
+        Multiple VTEC codes are possible.
+        """
+        path = os.path.join('tests', 'data', 'special', '2015062721.special')
+        hzf = HazardsFile(path)
+
+        self.assertEqual(hzf[0].vtec[0].product, 'O')
+        self.assertEqual(hzf[0].vtec[0].action, 'UPG')
+        self.assertEqual(hzf[0].vtec[0].office_id, 'KBOI')
+        self.assertEqual(hzf[0].vtec[0].phenomena, 'FW')
+        self.assertEqual(hzf[0].vtec[0].significance, 'A')
+        self.assertEqual(hzf[0].vtec[0].event_tracking_id, 1)
+        self.assertEqual(hzf[0].vtec[0].event_beginning_time,
+                         dt.datetime(2015, 6, 28, 21, 0, 0))
+        self.assertEqual(hzf[0].vtec[0].event_ending_time,
+                         dt.datetime(2015, 6, 29, 6, 0, 0))
+
+        self.assertEqual(hzf[0].vtec[1].product, 'O')
+        self.assertEqual(hzf[0].vtec[1].action, 'NEW')
+        self.assertEqual(hzf[0].vtec[1].office_id, 'KBOI')
+        self.assertEqual(hzf[0].vtec[1].phenomena, 'FW')
+        self.assertEqual(hzf[0].vtec[1].significance, 'W')
+        self.assertEqual(hzf[0].vtec[1].event_tracking_id, 1)
+        self.assertEqual(hzf[0].vtec[1].event_beginning_time,
+                         dt.datetime(2015, 6, 28, 21, 0, 0))
+        self.assertEqual(hzf[0].vtec[1].event_ending_time,
+                         dt.datetime(2015, 6, 29, 6, 0, 0))
+
     def test_expiration_date_exceeding_file_date(self):
+        """
+        The expiration date MUST always lie in the future from the file date.
+        """
         path = os.path.join('tests', 'data', 'noprcp', '2015063017.noprcp')
         hzf = HazardsFile(path)
         self.assertEqual(hzf[0].expiration_time,
@@ -77,8 +110,8 @@ class TestHazards(unittest.TestCase):
         path = os.path.join('tests', 'data', 'hurr_lcl', '2015050805.hurr')
         hzf = HazardsFile(path)
         self.assertEqual(hzf[0].base_date, dt.datetime(2015, 5, 8, 5, 0, 0))
-        self.assertIsNone(hzf[0].beginning_time)
-        self.assertIsNone(hzf[0].ending_time)
+        self.assertIsNone(hzf[0].vtec[0].event_beginning_time)
+        self.assertIsNone(hzf[0].vtec[0].event_ending_time)
 
     def test_summary_with_quote(self):
         """
@@ -99,7 +132,7 @@ class TestHazards(unittest.TestCase):
                     'LAWRENCE COUNTIES')
         self.assertEqual(actual, expected)
 
-        self.assertEqual(hzf[0].ending_time,
+        self.assertEqual(hzf[0].vtec[0].event_ending_time,
                          dt.datetime(2015, 6, 21, 21, 30, 0))
 
         self.assertEqual(hzf[0].expiration_time,
