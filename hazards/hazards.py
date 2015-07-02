@@ -62,59 +62,60 @@ _SIGNIFICANCE = {
 }
 
 _PHENOMENA = {
-    'BZ':  'Blizzard',
-    'WS':  'Water Storm',
-    'WW':  'Winter Weather',
-    'SN':  'Snow',
-    'HS':  'Heavy Snow',
-    'LE':  'Lake Effect Snow',
-    'LB':  'Lake Effect Snow & Blowing Snow',
-    'BS':  'Blowing/Drifting Snow',
-    'SB':  'Snow & Blowing Snow',
-    'IP':  'Sleet',
-    'HP':  'Heavy Sleet',
-    'ZR':  'Freezing Rain',
-    'IS':  'Ice Storm',
-    'FZ':  'Freeze',
-    'ZF':  'Freezing Fog',
-    'FR':  'Frost',
-    'WC':  'Wind Chill',
-    'EC':  'Extreme Cold',
-    'WI':  'Wind',
-    'HW':  'High Wind',
-    'LW':  'Lake Wind',
-    'FG':  'Dense Fog',
-    'SM':  'Dense Smoke',
-    'HT':  'Heat',
-    'EH':  'Excessive Heat',
-    'DU':  'Blowing Dust',
-    'DS':  'Dust Storm',
-    'FL':  'Flood',
-    'FF':  'Flash Flood',
-    'SV':  'Severe Thunderstorm',
-    'TO':  'Tornado',
-    'FW':  'Fire Weather (RFW, FWW)',
-    'RH':  'Radiological Hazard',
-    'VO':  'Volcano',
     'AF':  'Volcanic Ashfall',
     'AS':  'Air Stagnation',
     'AV':  'Avalanche',
-    'TS':  'Tsunami',
-    'MA':  'Marine',
-    'SC':  'Small Craft',
-    'GL':  'Gale',
-    'SR':  'Storm',
-    'HF':  'Hurricane Force Winds',
-    'TR':  'Tropical Storm',
-    'HU':  'Hurricane',
-    'TY':  'Typhoon',
-    'TI':  'Inland Tropical Storm Wind',
-    'HI':  'Inland Hurricane Wind',
-    'LS':  'Lakeshore Flood',
+    'BS':  'Blowing/Drifting Snow',
+    'BZ':  'Blizzard',
     'CF':  'Coastal Flood',
-    'UP':  'Ice Accretion',
+    'DS':  'Dust Storm',
+    'DU':  'Blowing Dust',
+    'EC':  'Extreme Cold',
+    'EH':  'Excessive Heat',
+    'FA':  'Areal Flood',
+    'FF':  'Flash Flood',
+    'FG':  'Dense Fog',
+    'FL':  'Flood',
+    'FR':  'Frost',
+    'FW':  'Fire Weather (RFW, FWW)',
+    'FZ':  'Freeze',
+    'GL':  'Gale',
+    'HF':  'Hurricane Force Winds',
+    'HI':  'Inland Hurricane Wind',
+    'HP':  'Heavy Sleet',
+    'HS':  'Heavy Snow',
+    'HT':  'Heat',
+    'HU':  'Hurricane',
+    'HW':  'High Wind',
+    'IP':  'Sleet',
+    'IS':  'Ice Storm',
+    'LB':  'Lake Effect Snow & Blowing Snow',
+    'LE':  'Lake Effect Snow',
     'LO':  'Low Water',
+    'LS':  'Lakeshore Flood',
+    'LW':  'Lake Wind',
+    'MA':  'Marine',
+    'RH':  'Radiological Hazard',
+    'SB':  'Snow & Blowing Snow',
+    'SC':  'Small Craft',
+    'SM':  'Dense Smoke',
+    'SN':  'Snow',
+    'SR':  'Storm',
     'SU':  'High Surf',
+    'SV':  'Severe Thunderstorm',
+    'TI':  'Inland Tropical Storm Wind',
+    'TO':  'Tornado',
+    'TR':  'Tropical Storm',
+    'TS':  'Tsunami',
+    'TY':  'Typhoon',
+    'UP':  'Ice Accretion',
+    'VO':  'Volcano',
+    'WC':  'Wind Chill',
+    'WI':  'Wind',
+    'WS':  'Water Storm',
+    'WW':  'Winter Weather',
+    'ZF':  'Freezing Fog',
+    'ZR':  'Freezing Rain',
 }
 
 # The general format is
@@ -481,7 +482,7 @@ class HazardMessage(object):
             self.header = re.sub('(\r|\n){2,}', ' ', raw_header)
             return
 
-        if self.vtec[0].phenomena in ['SV', 'TO']:
+        if self.vtec[0].phenomena in ['FA', 'SV', 'TO']:
             # Tornado warning
             # These headers do not seem to have leading and trailing "..."
             # sentinals around the header.
@@ -492,17 +493,21 @@ class HazardMessage(object):
             header_lst = []
             past_vtec = False
             for stanza in lst:
+
                 if past_vtec:
-                    if '&&' not in stanza:
-                        header_lst.append(stanza)
-                        continue
+                    if '&&' in stanza:
+                        break
+                    header_lst.append(stanza)
+                    continue
+
                 if vtec_regex.search(stanza) is not None:
                     past_vtec = True
                     continue
 
-            self.header = '\n'.join(header_lst)
+            self.header = '\n\n'.join(header_lst)
+            self.header = self.header.replace('\r\n', '\n')
             return
 
         msg = 'Unable to parse hazard summary, phenomena = {}'
-        msg = msg.format(self.phenomena)
+        msg = msg.format(self.vtec[0].phenomena)
         raise RuntimeError(msg)

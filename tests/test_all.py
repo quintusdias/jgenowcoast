@@ -42,20 +42,39 @@ class TestHazards(unittest.TestCase):
         # wcn:  severe thunderstorm watch expiration
         # winter: winter weather advisory
         #
-        # tstrm_warn, wcn doesn't work
-        for kind in ['hurr_lcl', 'noprcp', 'severe', 'special', 'state_summ',
-                     'svrlcl', 'torn_warn', 'tstrm_warn', 'wcn', 'winter']:
-            print(kind)
-            path = os.path.join('tests', 'data', 'watch_warn', kind)
-            for item in os.listdir(path):
-                filename = os.path.join(path, item)
-                print(filename)
-                hzf = HazardsFile(filename)
-                for h in hzf:
-                    for vtec in h.vtec:
-                        if vtec.action == 'NEW':
-                            action_lst.append((filename, vtec.action))
-        print(action_lst)
+        # fflood
+        for level1 in ['fflood', 'watch_warn']:
+            path1 = os.path.join('tests', 'data', 'external', level1)
+            for level2 in os.listdir(path1):
+                path2 = os.path.join(path1, level2)
+                for path3 in os.listdir(path2):
+                    filename = os.path.join(path2, path3)
+                    print(filename)
+                    hzf = HazardsFile(filename)
+                    for h in hzf:
+                        for vtec in h.vtec:
+                            if vtec.action == 'NEW':
+                                action_lst.append((filename, vtec.action))
+
+    def test_fflood(self):
+        path = os.path.join('tests', 'data', 'fflood', 'warn',
+                            '2015062713.warn')
+        hzf = HazardsFile(path)
+
+        self.assertEqual(hzf[0].header, fixtures.fflood_header)
+
+        self.assertEqual(hzf[0].vtec[0].product, 'O')
+        self.assertEqual(hzf[0].vtec[0].action, 'NEW')
+        self.assertEqual(hzf[0].vtec[0].office_id, 'KIWX')
+        self.assertEqual(hzf[0].vtec[0].phenomena, 'FA')
+        self.assertEqual(hzf[0].vtec[0].significance, 'W')
+        self.assertEqual(hzf[0].vtec[0].event_tracking_id, 15)
+        self.assertEqual(hzf[0].vtec[0].event_beginning_time,
+                         dt.datetime(2015, 6, 27, 13, 7, 0))
+        self.assertEqual(hzf[0].vtec[0].event_ending_time,
+                         dt.datetime(2015, 6, 27, 16, 0, 0))
+        self.assertEqual(hzf[0].expiration_time,
+                         dt.datetime(2015, 6, 27, 16, 0, 0))
 
     def test_multiple_vtec_codes(self):
         """
