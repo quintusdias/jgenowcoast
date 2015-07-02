@@ -4,11 +4,11 @@ import datetime as dt
 import os
 import re
 import sys
+import warnings
 if sys.hexversion < 0x030000:
     from StringIO import StringIO
 else:
     from io import StringIO
-import warnings
 
 import numpy as np
 
@@ -262,7 +262,8 @@ class HazardMessage(object):
 
     def __str__(self):
 
-        # Hazard, WKT
+        # First formulate strings for all the VTEC codes.  Usually, but not
+        # always, there is just one.
         lst = ['Product: {}', 'Action: {}', 'Office: {}', 'Phenomena: {}',
                'Significance: {}', 'Event Tracking Number: {}',
                'Beginning Time: {}', 'Ending Time: {}']
@@ -285,9 +286,13 @@ class HazardMessage(object):
             vtec_strs.append('')
         all_vtecs = '\n=====\n'.join(vtec_strs)
 
-        lst = ['Hazard: {}', '{}', 'Well known text: {}']
+        # Now formulate the main informal string representation by adding the
+        # header to the top, and the expiration time and wkt to the bottom.
+        lst = ['Hazard: {}', '{}', 'Expiration Time: {}',
+               'Well Known Text: {}']
         fmt = '\n'.join(lst)
-        txt = fmt.format(self.header, all_vtecs, self.wkt)
+        txt = fmt.format(self.header, all_vtecs, self.expiration_time,
+                         self.wkt)
 
         return txt
 

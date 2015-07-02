@@ -25,7 +25,7 @@ class TestHazards(unittest.TestCase):
             txt = page.read()
         return txt
 
-    #@unittest.skip('not now')
+    @unittest.skip('not now')
     def test_full_directory(self):
         """
         Should be able to read an entire directory of statements.
