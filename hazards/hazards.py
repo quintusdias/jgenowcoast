@@ -1,6 +1,7 @@
 from collections import namedtuple
 import copy
 import datetime as dt
+import itertools
 import os
 import re
 import sys
@@ -155,6 +156,41 @@ class NoVtecCodeException(Exception):
     pass
 
 
+def fetch_events(dirname, numlast=None):
+    """
+    Parameters
+    ----------
+    dirname : str
+        Directory of hazard bulletin files
+    numlast : int
+        Only take this many "most recent" files
+    """
+    lst = os.listdir(dirname)
+    if numlast is None:
+        fnames = [os.path.join(dirname, item) for item in lst]
+    else:
+        fnames = [os.path.join(dirname, item) for item in lst[numlast:]]
+    hzlst = [HazardsFile(fname) for fname in fnames]
+
+    events = []
+    for hazard_file in hzlst:
+        for bulletin in hazard_file:
+            for j, vtec_code in enumerate(bulletin.vtec):
+                gen = itertools.ifilter(lambda x: x.contains(vtec_code), events)
+                evts = list(gen)
+                if len(evts) == 0:
+                    # Must create a new event.
+                    events.append(Event(vtec_code, bulletin))
+                else:
+                    # The event already exists.  Just add this bulletin to the
+                    # sequence of events.
+                    assert len(evts) == 1
+                    evt = evts[0]
+                    evt.append(bulletin)
+
+    return events
+
+
 class HazardsFile(object):
     """
     Collection of hazard messages.
@@ -166,6 +202,7 @@ class HazardsFile(object):
         fname : filename
             File for filename to read.
         """
+        self.filename = fname
         self._items = []
 
         with open(fname, 'rt') as f:
@@ -201,6 +238,9 @@ class HazardsFile(object):
             items.append(message)
 
         self._items = items
+
+    def __str__(self):
+        return "Filename:  {}".format(self.filename)
 
     def __iter__(self):
         """
@@ -511,3 +551,65 @@ class HazardMessage(object):
         msg = 'Unable to parse hazard summary, phenomena = {}'
         msg = msg.format(self.vtec[0].phenomena)
         raise RuntimeError(msg)
+
+
+class Event(HazardsFile):
+    """
+    """
+    def __init__(self, vtec_code, bulletin):
+        self.vtec_code = vtec_code
+        my_bulletin = copy.deepcopy(bulletin)
+        if len(bulletin.vtec) > 1:
+            my_bulletin.vtec = [vtec_code]
+
+        self._items = [my_bulletin]
+
+    def __str__(self):
+        lst = []
+        for bulletin in self._items:
+            lst.append(str(bulletin))
+        return '\n'.join(lst)
+
+    def contains(self, vtec_code):
+        if (((self._items[0].vtec[0].product == vtec_code.product) and
+             (self._items[0].vtec[0].office_id == vtec_code.office_id) and
+             (self._items[0].vtec[0].phenomena == vtec_code.phenomena) and
+             (self._items[0].vtec[0].event_tracking_id == vtec_code.event_tracking_id))):
+            return True
+        else:
+            return False
+
+    def append(self, bulletin):
+        self._items.append(bulletin)
+
+    def current(self):
+        """
+        Is this event still in progress?
+        """
+        if self._items[-1].vtec[0].action != 'EXP':
+            return True
+        else:
+            return False
+
+    def __iter__(self):
+        """
+        Implements iterator protocol.
+        """
+        return iter(self._items)
+
+    def __len__(self):
+        """
+        Implements built-in len(), returns number of HazardMessage objects.
+        """
+        return len(self._items)
+
+    def __getitem__(self, idx):
+        """
+        Implement index lookup.
+        """
+        if idx >= len(self):
+            raise KeyError(str(idx))
+
+        return self._items[idx]
+
+

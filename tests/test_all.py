@@ -12,7 +12,7 @@ else:
     from unittest.mock import patch
     from io import StringIO
 
-from hazards import HazardsFile
+from hazards import HazardsFile, fetch_events
 
 from . import fixtures
 
@@ -20,11 +20,6 @@ from . import fixtures
 class TestHazards(unittest.TestCase):
     """
     """
-    def get_data(self, url):
-        with closing(urllib.urlopen(url)) as page:
-            txt = page.read()
-        return txt
-
     @unittest.skip('not now')
     def test_full_directory(self):
         """
@@ -55,6 +50,18 @@ class TestHazards(unittest.TestCase):
                         for vtec in h.vtec:
                             if vtec.action == 'NEW':
                                 action_lst.append((filename, vtec.action))
+
+    #@unittest.skip('not now')    
+    def test_single_event(self):
+        """
+        Split file into individual events.
+        """
+        dirname = os.path.join('tests', 'data', 'watch_warn', 'svrlcl')
+        events = fetch_events(dirname)
+
+        # The first event is a severe thunderwtorm watch, which has
+        # expired.
+        self.assertFalse(events[0].current())
 
     def test_fflood(self):
         path = os.path.join('tests', 'data', 'fflood', 'warn',
