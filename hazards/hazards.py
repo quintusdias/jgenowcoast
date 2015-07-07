@@ -1,4 +1,3 @@
-from collections import namedtuple
 import copy
 import datetime as dt
 import itertools
@@ -145,11 +144,77 @@ vtec_pattern = r'''\/
 vtec_regex = re.compile(vtec_pattern, re.VERBOSE)
 
 
-VtecCode = namedtuple('VtecCode', ['product', 'action', 'office_id',
-                                   'phenomena', 'significance',
-                                   'event_tracking_id',
-                                   'event_beginning_time',
-                                   'event_ending_time'])
+class VtecCode(object):
+    """
+    Attributes
+    -----------
+    code : str
+        Original VTEC code, i.e. something like
+        "O.CON.KILM.TR.A.1001.000000T0000Z-000000T0000Z"
+    event_beginning_time, event_ending_time : date time objects
+        Event beginning and ending times
+    product : str
+        1-character code tells whether the product is test, experimental, or
+        operational
+    action : str
+        3-character code describes the action being taken with this product
+        issuance.  The first time any VTEC event is included, it starts
+        as a NEW.   The other action codes are used in followup products,
+        except for the last one in the list, ROU (for routine).
+    office_id : str
+        4-character code identifying the origin of the bulletin
+    phenomena : str
+        two-character code describes the specific meteorological or hydrologic
+        phenomenon included in the product or product segment.  As you
+        can see, there is a large list of phenomena codes, and as needs
+        arise additional ones will be added to the list.
+    significance : str
+        This single character, when combined with the phenomenon code,
+        describes a specific VTEC event.  For example, a Winter Storm
+        Watch would have a Phenomenon code of WS and a Significance code
+        of A, while a Winter Storm Warning would have a Phenomenon code
+        of WS and a Significance code of W.
+    event_tracking_id : int
+        Assigned in sequence by a WFO for a phenomena.
+    """
+    def __init__(self, match):
+        """
+        Parameters
+        ----------
+        match : regular expression match object
+            Matches vtec code
+        """
+        self.code = match.group()
+
+        gd = match.groupdict()
+        if gd['start'] == '000000T0000Z':
+            self.event_beginning_time = None
+        else:
+            year = 2000 + int(gd['start'][0:2])
+            month = int(gd['start'][2:4])
+            day = int(gd['start'][4:6])
+            hour = int(gd['start'][7:9])
+            minute = int(gd['start'][9:11])
+            the_time = dt.datetime(year, month, day, hour, minute, 0)
+            self.event_beginning_time = the_time
+
+        if gd['stop'] == '000000T0000Z':
+            self.event_ending_time = None
+        else:
+            year = 2000 + int(gd['stop'][0:2])
+            month = int(gd['stop'][2:4])
+            day = int(gd['stop'][4:6])
+            hour = int(gd['stop'][7:9])
+            minute = int(gd['stop'][9:11])
+            ending_time = dt.datetime(year, month, day, hour, minute, 0)
+            self.event_ending_time = ending_time
+
+        self.product = gd['product_class']
+        self.action = gd['action_code']
+        self.office_id = gd['office_id']
+        self.phenomena = gd['phenomena']
+        self.significance = gd['significance']
+        self.event_tracking_id = int(gd['event_tracking_id'])
 
 
 class NoVtecCodeException(Exception):
@@ -407,39 +472,9 @@ class HazardMessage(object):
         self._vtec_codes = []
 
         for m in vtec_regex.finditer(self._message):
-            self._vtec_codes.append(m.group())
-            if m.groupdict()['start'] == '000000T0000Z':
-                beginning_time = None
-            else:
-                year = 2000 + int(m.groupdict()['start'][0:2])
-                month = int(m.groupdict()['start'][2:4])
-                day = int(m.groupdict()['start'][4:6])
-                hour = int(m.groupdict()['start'][7:9])
-                minute = int(m.groupdict()['start'][9:11])
-                the_time = dt.datetime(year, month, day, hour, minute, 0)
-                beginning_time = the_time
-
-            if m.groupdict()['stop'] == '000000T0000Z':
-                ending_time = None
-            else:
-                year = 2000 + int(m.groupdict()['stop'][0:2])
-                month = int(m.groupdict()['stop'][2:4])
-                day = int(m.groupdict()['stop'][4:6])
-                hour = int(m.groupdict()['stop'][7:9])
-                minute = int(m.groupdict()['stop'][9:11])
-                ending_time = dt.datetime(year, month, day, hour, minute, 0)
-                ending_time = ending_time
-
-            gd = m.groupdict()
-            obj = VtecCode(product=gd['product_class'],
-                           action=gd['action_code'],
-                           office_id=gd['office_id'],
-                           phenomena=gd['phenomena'],
-                           significance=gd['significance'],
-                           event_tracking_id=int(gd['event_tracking_id']),
-                           event_beginning_time=beginning_time,
-                           event_ending_time=ending_time)
-            self.vtec.append(obj)
+            the_vtec_code = m.group()
+            self._vtec_codes.append(the_vtec_code)
+            self.vtec.append(VtecCode(m))
 
         if len(self.vtec) == 0:
             raise NoVtecCodeException()
@@ -611,5 +646,3 @@ class Event(HazardsFile):
             raise KeyError(str(idx))
 
         return self._items[idx]
-
-
