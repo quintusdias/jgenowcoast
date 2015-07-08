@@ -145,6 +145,14 @@ class TestHazards(unittest.TestCase):
         self.assertEqual(hzf[0].expiration_time,
                          dt.datetime(2015, 6, 24, 22, 0, 0))
 
+        # Verify the geographic information.
+        self.assertEqual(hzf[0].states['GA'],
+                         [87, 88, 99, 100, 101, 114, 115, 116, 117, 118, 119,
+                          137, 138, 139, 140, 141])
+        self.assertEqual(hzf[0].states['SC'],
+                         [40, 42, 43, 44, 45, 47, 48, 49, 50, 51, 52])
+        self.assertEqual(hzf[0].ugc_format, 'zone')
+
     def test_hurricane_warning_with_no_times_in_vtec_code(self):
         path = os.path.join('tests', 'data', 'hurr_lcl', '2015050805.hurr')
         hzf = HazardsFile(path)

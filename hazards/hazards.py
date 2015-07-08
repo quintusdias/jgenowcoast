@@ -349,6 +349,11 @@ class Bulletin(object):
         Time at which the product (not the event) expires
     polygon : list
         List of lat/lon pairs
+    ugc_format : str
+        Either 'county' or 'zone'
+    state : dictionary
+        The keys consist of FIPS codes, the values consist of a list of
+        counties or zones.
     wkt : str
         Well-known text representation of the polygon defining the
         hazard
@@ -440,9 +445,66 @@ class Bulletin(object):
         if m is None:
             raise RuntimeError("Could not parse expiration time.")
 
-        self._parse_expiration_date(m.groupdict())
+        self._parse_ugc_expiration_date(m.groupdict())
+        self._parse_ugc_geography(m.group())
 
-    def _parse_expiration_date(self, gd):
+    def _parse_ugc_geography(self, txt):
+        """
+        Now parse the geographic information.
+
+        The UGC takes the form
+
+            SSFNNN-NNN>NNN-SSFNNN-DDHHMM-
+
+        So capture the 2-char FIPS code, the single char format code,
+        and then an indeterminite number of county/zone codes.  Wash, rinse,
+        repeat.
+
+        Parameters
+        ----------
+        txt : str
+            UGC string
+        """
+        # Must match:
+        #
+        #    1) the two-char FIPS code (state), the single
+        #    2) a single-char county or zone code
+        #    3) a sequence of numbers and separators identifying the
+        #       counties/zones
+        #
+        ugc_regex = re.compile(r'''(?P<fips>\w{2})
+                                   (?P<format>[CZ])
+                                   (?:\d{3}((-|>)(\r\n)?))+
+                                ''', re.VERBOSE)
+
+        # Within the sequence of counties/zones, must match at least one
+        # 3-digit code for a county or zone, but possibly an entire range
+        # of zones.  If the separator is '>', that means a range of zones.
+        cty_regex = re.compile(r'''(\d{3})(-|>\d{3}-)''', re.VERBOSE)
+
+        states = {}
+        for m in ugc_regex.finditer(txt):
+            state = m.groupdict()['fips']
+            format = m.groupdict()['format']
+
+            codes = []
+            for item in cty_regex.findall(m.group()):
+                if item[1] == '-':
+                    # single county or zone
+                    codes.append(int(item[0]))
+                else:
+                    # multiple zones
+                    # The matched string was something like "114>117-"
+                    # which means that zones 114, 115, 116, and 117 were
+                    # intended.  Can never have a range of counties.
+                    for code in range(int(item[0]), int(item[1][1:4]) + 1):
+                        codes.append(code)
+            states[state] = codes
+
+        self.states = states
+        self.ugc_format = 'county' if format == 'C' else 'zone'
+
+    def _parse_ugc_expiration_date(self, gd):
         """
         Construct the expiration date from the UGC.
 
@@ -616,7 +678,6 @@ class Bulletin(object):
             self.header = self.header.replace('\r\n', '\n')
             return
 
-        import ipdb; ipdb.set_trace()
         msg = 'Unable to parse hazard summary, phenomena = {}'
         msg = msg.format(self.vtec[0].phenomena)
         raise RuntimeError(msg)
