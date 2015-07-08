@@ -287,20 +287,20 @@ class HazardsFile(object):
         regex = re.compile(r'''\$\$''')
 
         items = []
-        hash_list = []
+        bulletins_already_seen = []
         for text_item in regex.split(txt)[0:-1]:
             try:
-                message = Bulletin(text_item, file_base_date)
+                bltn = Bulletin(text_item, file_base_date)
             except NoVtecCodeException:
                 # If a hurricane file, just ignore it?
                 continue
 
             # Is this a repeat of the last message?
-            if message._hash in hash_list:
+            if bltn.id in bulletins_already_seen:
                 continue
 
-            hash_list.append(message._hash)
-            items.append(message)
+            bulletins_already_seen.append(bltn.id)
+            items.append(bltn)
 
         self._items = items
 
@@ -471,17 +471,25 @@ class Bulletin(object):
             Content of message.
         """
         self.vtec = []
-        self._vtec_codes = []
+
+        _codes = []
 
         for m in vtec_regex.finditer(self._message):
             the_vtec_code = m.group()
-            self._vtec_codes.append(the_vtec_code)
+            _codes.append(the_vtec_code)
             self.vtec.append(VtecCode(m))
 
         if len(self.vtec) == 0:
             raise NoVtecCodeException()
 
-        self._hash = hash(''.join(self._vtec_codes))
+        self._id = hash(''.join(_codes))
+
+    @property
+    def id(self):
+        """
+        Return unique identifier based upon the vtec codes
+        """
+        return self._id
 
     def create_wkt(self):
         """
