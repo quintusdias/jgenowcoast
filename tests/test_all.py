@@ -1,9 +1,7 @@
-from contextlib import closing
 import datetime as dt
 import os
 import sys
 import unittest
-import urllib
 
 if sys.hexversion < 0x03000000:
     from mock import patch
@@ -51,7 +49,6 @@ class TestHazards(unittest.TestCase):
                             if vtec.action == 'NEW':
                                 action_lst.append((filename, vtec.action))
 
-    #@unittest.skip('not now')    
     def test_single_event(self):
         """
         Split file into individual events.
@@ -59,9 +56,14 @@ class TestHazards(unittest.TestCase):
         dirname = os.path.join('tests', 'data', 'watch_warn', 'svrlcl')
         events = fetch_events(dirname)
 
-        # The first event is a severe thunderwtorm watch, which has
-        # expired.
+        # The first event in the list has five bulletins, a severe thunderstorm
+        # watch starting on June 24 at 11am and expiring at 12am.
+        self.assertEqual(len(events[0]), 5)
         self.assertFalse(events[0].current())
+
+        # The last event has six bulletins, and has not yet expired.
+        self.assertEqual(len(events[-1]), 6)
+        self.assertTrue(events[-1].current())
 
     def test_fflood(self):
         path = os.path.join('tests', 'data', 'fflood', 'warn',

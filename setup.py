@@ -10,9 +10,6 @@ kwargs = {'name': 'hazards',
           'version': '0.0.1',
           'install_requires': install_requires,
           'author':  'John Evans',
-          'entry_points':  {
-              'console_scripts': ['hzdump=hazards.commandline:hzdump'],
-          },
           'packages': ['hazards']}
 
 setup(**kwargs)
