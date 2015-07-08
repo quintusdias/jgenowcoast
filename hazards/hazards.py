@@ -222,7 +222,7 @@ class NoVtecCodeException(Exception):
         self.message = message
 
 
-def fetch_events(dirname, numlast=None):
+def fetch_events(dirname, numlast=None, current=None):
     """
     Parameters
     ----------
@@ -230,6 +230,9 @@ def fetch_events(dirname, numlast=None):
         Directory of hazard bulletin files
     numlast : int
         Only take this many "most recent" files
+    current : bool
+        If True, keep only current events, that is, events that have not
+        expired
     """
     lst = os.listdir(dirname)
     if numlast is None:
@@ -253,6 +256,9 @@ def fetch_events(dirname, numlast=None):
                     assert len(evts) == 1
                     evt = evts[0]
                     evt.append(bulletin)
+
+    if current is not None and current:
+        events = [event for event in events if event.current()]
 
     return events
 
@@ -414,6 +420,9 @@ class Bulletin(object):
             PAC007-073-212130-
             GAZ087-088-099>101-114>119-137>141-SCZ040-042>045-047>052-242200-
 
+        Reference
+        ---------
+        [1] http://www.nws.noaa.gov/directives/sym/pd01017002curr.pdf
         """
 
         # The event can cross states, so that part can consist of one or more

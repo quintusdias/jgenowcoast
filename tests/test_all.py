@@ -45,11 +45,21 @@ class TestHazards(unittest.TestCase):
                     hzf = HazardsFile(filename)
                     for h in hzf:
                         pass
-                        #for vtec in h.vtec:
-                        #    if vtec.action == 'NEW':
-                        #        action_lst.append((filename, vtec.action))
+                        # for vtec in h.vtec:
+                        #     if vtec.action == 'NEW':
+                        #         action_lst.append((filename, vtec.action))
 
-    def test_single_event(self):
+    def test_fetch_active(self):
+        """
+        Fetch only events that are active
+        """
+        dirname = os.path.join('tests', 'data', 'external', 'watch_warn',
+                               'svrlcl')
+        events = fetch_events(dirname, current=True)
+        for event in events:
+            self.assertTrue(event.current())
+
+    def test_individual_event(self):
         """
         Split file into individual events.
         """
