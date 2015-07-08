@@ -371,7 +371,7 @@ class Bulletin(object):
 
         self.parse_vtec_code()
         self.parse_hazard_header()
-        self.parse_ugc_expiration()
+        self.parse_universal_geographic_code()
         self.parse_polygon()
         self.create_wkt()
 
@@ -411,7 +411,7 @@ class Bulletin(object):
 
         return txt
 
-    def parse_ugc_expiration(self):
+    def parse_universal_geographic_code(self):
         """
         Parse the UGC and product expiration time.
 
@@ -430,7 +430,7 @@ class Bulletin(object):
         #
         # The 2nd element can be present or not, and there can be at least as
         # many items as there are states.
-        regex = re.compile(r'''(\w{3}(\d{3}((-|>)(\r\n)?))+)+
+        regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)(\r\n)?))+)+
                                (?P<day>\d{2})
                                (?P<hour>\d{2})
                                (?P<minute>\d{2})-
@@ -440,9 +440,21 @@ class Bulletin(object):
         if m is None:
             raise RuntimeError("Could not parse expiration time.")
 
-        exp_day = int(m.groupdict()['day'])
-        exp_hour = int(m.groupdict()['hour'])
-        exp_minute = int(m.groupdict()['minute'])
+        self._parse_expiration_date(m.groupdict())
+
+    def _parse_expiration_date(self, gd):
+        """
+        Construct the expiration date from the UGC.
+
+        Parameters
+        -----------
+        gd : regular expression match object dictionary
+            Has day, hour, minute fields.  The year and month need to be
+            inferred.
+        """
+        exp_day = int(gd['day'])
+        exp_hour = int(gd['hour'])
+        exp_minute = int(gd['minute'])
         if exp_day < self.base_date.day:
             if self.base_date.month == 12:
                 # Beginning of next year
