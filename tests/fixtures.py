@@ -11,7 +11,7 @@ la_url = ('ftp://tgftp.nws.noaa.gov/data/watches_warnings/thunderstorm/la/'
 relpath = os.path.join('data', 'severe', '2015062121.severe')
 severe_thunderstorm_file = pkg.resource_filename(__name__, relpath)
 
-tstorm_warning_txt = r"""Headline: A SEVERE THUNDERSTORM WARNING REMAINS IN EFFECT UNTIL 530 PM EDT FOR NORTHEASTERN BEAVER AND SOUTH CENTRAL LAWRENCE COUNTIES
+severe_print = r"""Headline: A SEVERE THUNDERSTORM WARNING REMAINS IN EFFECT UNTIL 530 PM EDT FOR NORTHEASTERN BEAVER AND SOUTH CENTRAL LAWRENCE COUNTIES
 Product: Operational product
 Action: Event continued
 Office: KPBZ
@@ -23,7 +23,19 @@ Ending Time: 2015-06-21 21:30:00
 Expiration Time: 2015-06-21 21:30:00
 Well Known Text: POLYGON((80.43 40.84, 80.32 40.89, 80.16 40.83, 80.15 40.69, 80.43 40.84))"""
 
-fflood_headline = r"""THE NATIONAL WEATHER SERVICE IN NORTHERN INDIANA  HAS ISSUED A
+fflood_print = r"""Headline: None
+Product: Operational product
+Action: New event
+Office: KIWX
+Phenomena: Areal Flood
+Significance: Warning
+Event Tracking Number: 15
+Beginning Time: 2015-06-27 13:07:00
+Ending Time: 2015-06-27 16:00:00
+Expiration Time: 2015-06-27 16:00:00
+Well Known Text: None"""
+
+fflood_txt = r"""THE NATIONAL WEATHER SERVICE IN NORTHERN INDIANA  HAS ISSUED A
 
 * FLOOD WARNING FOR...
   DE KALB COUNTY IN NORTHEASTERN INDIANA...

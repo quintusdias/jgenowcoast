@@ -416,13 +416,8 @@ class Bulletin(object):
         lst = ['Headline: {}', '{}', 'Expiration Time: {}',
                'Well Known Text: {}']
         fmt = '\n'.join(lst)
-        if self.headline is not None:
-            txt = fmt.format(self.headline, all_vtecs, self.expiration_time,
-                             self.wkt)
-        else:
-            headline = self.txt.split('\n')[0]
-            txt = fmt.format(headline, all_vtecs, self.expiration_time,
-                             self.wkt)
+        txt = fmt.format(self.headline, all_vtecs, self.expiration_time,
+                         self.wkt)
 
         return txt
 

@@ -84,7 +84,7 @@ class TestHazards(unittest.TestCase):
         # Flood warnings don't have headlines.
         self.assertIsNone(hzf[0].headline)
 
-        self.assertEqual(hzf[0].txt, fixtures.fflood_headline)
+        self.assertEqual(hzf[0].txt, fixtures.fflood_txt)
         self.assertEqual(hzf[0].vtec[0].product, 'O')
         self.assertEqual(hzf[0].vtec[0].action, 'NEW')
         self.assertEqual(hzf[0].vtec[0].office_id, 'KIWX')
@@ -192,15 +192,29 @@ class TestHazards(unittest.TestCase):
                     '80.15 40.69, 80.43 40.84))')
         self.assertEqual(actual, expected)
 
-    def test_basic_print(self):
+    def test_print_with_headline(self):
         """
-        Verify that printing a bulletin works as expected.
+        Verify that printing a bulletin works as expected with headline
         """
         hzf = HazardsFile(fixtures.severe_thunderstorm_file)
         with patch('sys.stdout', new=StringIO()) as fake_out:
             print(hzf[0])
             actual = fake_out.getvalue().strip()
-        expected = fixtures.tstorm_warning_txt
+        expected = fixtures.severe_print
+        self.assertEqual(actual, expected)
+
+    def test_print_without_headline(self):
+        """
+        Verify that printing a bulletin works as expected without headlines
+        """
+        path = os.path.join('tests', 'data', 'fflood', 'warn',
+                            '2015062713.warn')
+        hzf = HazardsFile(path)
+
+        with patch('sys.stdout', new=StringIO()) as fake_out:
+            print(hzf[0])
+            actual = fake_out.getvalue().strip()
+        expected = fixtures.fflood_print
         self.assertEqual(actual, expected)
 
 
