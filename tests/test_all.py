@@ -23,7 +23,6 @@ class TestHazards(unittest.TestCase):
         """
         Should be able to read an entire directory of statements.
         """
-        action_lst = []
         # hurr_lcl:  tropical storm / hurricane watch
         # noprcp:  heat advisory?
         # severe:  severe thunderstorm warning
@@ -45,15 +44,17 @@ class TestHazards(unittest.TestCase):
                     print(filename)
                     hzf = HazardsFile(filename)
                     for h in hzf:
-                        for vtec in h.vtec:
-                            if vtec.action == 'NEW':
-                                action_lst.append((filename, vtec.action))
+                        pass
+                        #for vtec in h.vtec:
+                        #    if vtec.action == 'NEW':
+                        #        action_lst.append((filename, vtec.action))
 
     def test_single_event(self):
         """
         Split file into individual events.
         """
-        dirname = os.path.join('tests', 'data', 'watch_warn', 'svrlcl')
+        dirname = os.path.join('tests', 'data', 'external', 'watch_warn',
+                               'svrlcl')
         events = fetch_events(dirname)
 
         # The first event in the list has five bulletins, a severe thunderstorm

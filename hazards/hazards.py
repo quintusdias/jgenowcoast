@@ -218,7 +218,8 @@ class VtecCode(object):
 
 
 class NoVtecCodeException(Exception):
-    pass
+    def __init__(self, message):
+        self.message = message
 
 
 def fetch_events(dirname, numlast=None):
@@ -480,7 +481,8 @@ class Bulletin(object):
             self.vtec.append(VtecCode(m))
 
         if len(self.vtec) == 0:
-            raise NoVtecCodeException()
+            msg = "No VTEC codes detected"
+            raise NoVtecCodeException(msg)
 
         self._id = hash(''.join(_codes))
 
@@ -567,7 +569,7 @@ class Bulletin(object):
             self.header = re.sub('(\r|\n){2,}', ' ', raw_header)
             return
 
-        if self.vtec[0].phenomena in ['FA', 'SV', 'TO']:
+        if self.vtec[0].phenomena in ['FA', 'FF', 'FL', 'SV', 'TO']:
             # Tornado warning
             # These headers do not seem to have leading and trailing "..."
             # sentinals around the header.
@@ -593,6 +595,7 @@ class Bulletin(object):
             self.header = self.header.replace('\r\n', '\n')
             return
 
+        import ipdb; ipdb.set_trace()
         msg = 'Unable to parse hazard summary, phenomena = {}'
         msg = msg.format(self.vtec[0].phenomena)
         raise RuntimeError(msg)
