@@ -81,8 +81,10 @@ class TestHazards(unittest.TestCase):
                             '2015062713.warn')
         hzf = HazardsFile(path)
 
-        self.assertEqual(hzf[0].header, fixtures.fflood_header)
+        # Flood warnings don't have headlines.
+        self.assertIsNone(hzf[0].headline)
 
+        self.assertEqual(hzf[0].txt, fixtures.fflood_headline)
         self.assertEqual(hzf[0].vtec[0].product, 'O')
         self.assertEqual(hzf[0].vtec[0].action, 'NEW')
         self.assertEqual(hzf[0].vtec[0].office_id, 'KIWX')
@@ -173,7 +175,7 @@ class TestHazards(unittest.TestCase):
         with self.assertRaises(KeyError):
             hzf[36]
 
-        actual = hzf[0].header
+        actual = hzf[0].headline
         expected = ('A SEVERE THUNDERSTORM WARNING REMAINS IN EFFECT UNTIL '
                     '530 PM EDT FOR NORTHEASTERN BEAVER AND SOUTH CENTRAL '
                     'LAWRENCE COUNTIES')

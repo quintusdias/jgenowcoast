@@ -343,8 +343,9 @@ class Bulletin(object):
     base_date : datetime
         Base time as indicated by name of hazards file from whence all this
         information comes
-    header : str
-        Descriptive text
+    headline : str
+        One or more headlines that may begin the narrative/data part of the
+        product content block.  See section 5.1 of [1].
     expiration_time : datetime
         Time at which the product (not the event) expires
     polygon : list
@@ -357,6 +358,10 @@ class Bulletin(object):
     wkt : str
         Well-known text representation of the polygon defining the
         hazard
+
+    Ref
+    ---
+    [1] http://www.nws.noaa.gov/directives/sym/pd01017001curr.pdf
     """
 
     def __init__(self, txt, base_date):
@@ -375,7 +380,7 @@ class Bulletin(object):
         self.wkt = None
 
         self.parse_vtec_code()
-        self.parse_hazard_header()
+        self.parse_content()
         self.parse_universal_geographic_code()
         self.parse_polygon()
         self.create_wkt()
@@ -408,11 +413,16 @@ class Bulletin(object):
 
         # Now formulate the main informal string representation by adding the
         # header to the top, and the expiration time and wkt to the bottom.
-        lst = ['Hazard: {}', '{}', 'Expiration Time: {}',
+        lst = ['Headline: {}', '{}', 'Expiration Time: {}',
                'Well Known Text: {}']
         fmt = '\n'.join(lst)
-        txt = fmt.format(self.header, all_vtecs, self.expiration_time,
-                         self.wkt)
+        if self.headline is not None:
+            txt = fmt.format(self.headline, all_vtecs, self.expiration_time,
+                             self.wkt)
+        else:
+            headline = self.txt.split('\n')[0]
+            txt = fmt.format(headline, all_vtecs, self.expiration_time,
+                             self.wkt)
 
         return txt
 
@@ -628,17 +638,24 @@ class Bulletin(object):
 
         self.polygon = zip(lons, lats)
 
-    def parse_hazard_header(self):
+    def parse_content(self):
         """
-        Parameters
-        ----------
-        txt : str
-            Text of severe weather message.
+        Parse all text information following the Segment Header Block.
         """
+
+        # Headlines
+        #
         # At least two newlines followed by "..." and the message.
         # The message can contain the "..." pattern, but the end of the
         # message must be terminated by "..." followed by at least two
         # end-of-line characters.
+        #
+        # Some events do not have headlines.  Examples include
+        #     FA (areal flood)
+        #     FF (flash flood)
+        #     FL (flood)
+        #     SV (severe thunderstorm)
+        #     TO (tornado)
         regex = re.compile(r'''(\s|\r|\n){2,}
                                \.\.\.
                                (?P<header>[0-9\w\s\./\'-]*?)
@@ -649,38 +666,29 @@ class Bulletin(object):
             raw_header = m.groupdict()['header']
 
             # Replace any sequence of newlines with just a space.
-            self.header = re.sub('(\r|\n){2,}', ' ', raw_header)
-            return
+            self.headline = re.sub('(\r|\n){2,}', ' ', raw_header)
+        else:
+            self.headline = None
 
-        if self.vtec[0].phenomena in ['FA', 'FF', 'FL', 'SV', 'TO']:
-            # Tornado warning
-            # These headers do not seem to have leading and trailing "..."
-            # sentinals around the header.
-            #
-            # Split the message by paragraphs, take all those following the
-            # VTEC code stanza.
-            lst = re.split(r'''(?:\r\n){2,}''', self._message)
-            header_lst = []
-            past_vtec = False
-            for stanza in lst:
+        # Split the message by paragraphs, take all those following the
+        # VTEC code stanza.
+        lst = re.split(r'''(?:\r\n){2,}''', self._message)
+        header_lst = []
+        past_vtec = False
+        for stanza in lst:
 
-                if past_vtec:
-                    if '&&' in stanza:
-                        break
-                    header_lst.append(stanza)
-                    continue
+            if past_vtec:
+                if '&&' in stanza:
+                    break
+                header_lst.append(stanza)
+                continue
 
-                if vtec_regex.search(stanza) is not None:
-                    past_vtec = True
-                    continue
+            if vtec_regex.search(stanza) is not None:
+                past_vtec = True
+                continue
 
-            self.header = '\n\n'.join(header_lst)
-            self.header = self.header.replace('\r\n', '\n')
-            return
-
-        msg = 'Unable to parse hazard summary, phenomena = {}'
-        msg = msg.format(self.vtec[0].phenomena)
-        raise RuntimeError(msg)
+        txt = '\n\n'.join(header_lst)
+        self.txt = txt.replace('\r\n', '\n')
 
 
 class Event(HazardsFile):
