@@ -34,14 +34,14 @@ _TIMEZONES = {
     "CHST": 10
 }
 
-_PRODUCT_CLASS = {
+_VTEC_PRODUCT_CLASS = {
     'O':  'Operational product',
     'T':  'Test product',
     'E':  'Experimental product',
     'X':  'Experimental VTEC in Operational product',
 }
 
-_ACTION_CODE = {
+_VTEC_ACTION_CODE = {
     'NEW':  'New event',
     'CON':  'Event continued',
     'EXT':  'Event extended (time)',
@@ -54,14 +54,14 @@ _ACTION_CODE = {
     'ROU':  'Routine',
 }
 
-_SIGNIFICANCE = {
+_VTEC_SIGNIFICANCE = {
     'W':  'Warning',
     'A':  'Watch',
     'Y':  'Advisory',
     'S':  'Statement',
 }
 
-_PHENOMENA = {
+_VTEC_PHENOMENA = {
     'AF':  'Volcanic Ashfall',
     'AS':  'Air Stagnation',
     'AV':  'Avalanche',
@@ -290,7 +290,7 @@ class HazardsFile(object):
         hash_list = []
         for text_item in regex.split(txt)[0:-1]:
             try:
-                message = HazardMessage(text_item, file_base_date)
+                message = Bulletin(text_item, file_base_date)
             except NoVtecCodeException:
                 # If a hurricane file, just ignore it?
                 continue
@@ -315,7 +315,7 @@ class HazardsFile(object):
 
     def __len__(self):
         """
-        Implements built-in len(), returns number of HazardMessage objects.
+        Implements built-in len(), returns number of Bulletin objects.
         """
         return len(self._items)
 
@@ -329,30 +329,32 @@ class HazardsFile(object):
         return self._items[idx]
 
 
-class HazardMessage(object):
+class Bulletin(object):
     """
     Attributes
     ----------
     base_date : datetime
         Base time as indicated by name of hazards file from whence all this
-        information comes.
-    hazard_text : str
-        Descriptive text.
-    expires : datetime
-        Time at which the message expires.
+        information comes
+    header : str
+        Descriptive text
+    expiration_time : datetime
+        Time at which the product (not the event) expires
     polygon : list
-        List of lat/lon pairs.
+        List of lat/lon pairs
     wkt : str
         Well-known text representation of the polygon defining the
-        hazard.
+        hazard
     """
 
     def __init__(self, txt, base_date):
         """
         Parameters
         ----------
-        fname : file or str
-            File for filename to read.
+        txt : str
+            Text constituting the entire bulletin
+        base_date : datetime.datetime
+            Date attached to the file from whence this bulletin came.
         """
         self._message = txt
         self.base_date = base_date
@@ -377,11 +379,11 @@ class HazardMessage(object):
 
         vtec_strs = []
         for vtec_code in self.vtec:
-            txt = fmt.format(_PRODUCT_CLASS[vtec_code.product],
-                             _ACTION_CODE[vtec_code.action],
+            txt = fmt.format(_VTEC_PRODUCT_CLASS[vtec_code.product],
+                             _VTEC_ACTION_CODE[vtec_code.action],
                              vtec_code.office_id,
-                             _PHENOMENA[vtec_code.phenomena],
-                             _SIGNIFICANCE[vtec_code.significance],
+                             _VTEC_PHENOMENA[vtec_code.phenomena],
+                             _VTEC_SIGNIFICANCE[vtec_code.significance],
                              vtec_code.event_tracking_id,
                              vtec_code.event_beginning_time,
                              vtec_code.event_ending_time)
@@ -634,7 +636,7 @@ class Event(HazardsFile):
 
     def __len__(self):
         """
-        Implements built-in len(), returns number of HazardMessage objects.
+        Implements built-in len(), returns number of bulletins
         """
         return len(self._items)
 
