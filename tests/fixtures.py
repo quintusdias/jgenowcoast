@@ -67,4 +67,3 @@ CREEKS...STREAMS AND OTHER LOW LYING AREAS ARE SUBJECT TO FLOODING."""
 # Example of summary with a single quote character.
 relpath = os.path.join('data', 'severe', '2015062722.severe')
 summary_with_quote = pkg.resource_filename(__name__, relpath)
-
