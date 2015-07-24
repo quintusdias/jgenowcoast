@@ -235,6 +235,10 @@ def fetch_events(dirname, numlast=None, current=None):
         expired
     """
     lst = os.listdir(dirname)
+
+    # exclude if it starts with a "."
+    lst = [item for item in lst if not item.startswith('.')]
+
     if numlast is None:
         fnames = [os.path.join(dirname, item) for item in lst]
     else:
@@ -303,10 +307,11 @@ class HazardsFile(object):
                 continue
 
             # Is this a repeat of the last message?
-            if bltn.id in bulletins_already_seen:
+            # if bltn.id in bulletins_already_seen:
+            if bltn._message in bulletins_already_seen:
                 continue
 
-            bulletins_already_seen.append(bltn.id)
+            bulletins_already_seen.append(bltn._message)
             items.append(bltn)
 
         self._items = items
@@ -440,7 +445,7 @@ class Bulletin(object):
         #
         # The 2nd element can be present or not, and there can be at least as
         # many items as there are states.
-        regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)(\r\n)?))+)+
+        regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)(\r\r\n)?))+)+
                                (?P<day>\d{2})
                                (?P<hour>\d{2})
                                (?P<minute>\d{2})-
@@ -448,6 +453,7 @@ class Bulletin(object):
 
         m = regex.search(self._message)
         if m is None:
+            import ipdb; ipdb.set_trace()
             raise RuntimeError("Could not parse expiration time.")
 
         self._parse_ugc_expiration_date(m.groupdict())
@@ -688,6 +694,12 @@ class Bulletin(object):
 
 class Event(HazardsFile):
     """
+    Bulletins for fetime of an event.
+
+    Attributes
+    ----------
+    vtec_code : str
+        Object containing VTEC code.
     """
     def __init__(self, vtec_code, bulletin):
         self.vtec_code = vtec_code
@@ -701,7 +713,7 @@ class Event(HazardsFile):
         lst = []
         for bulletin in self._items:
             lst.append(str(bulletin))
-        return '\n'.join(lst)
+        return '\n-----\n'.join(lst)
 
     def contains(self, vtec_code):
         if (((self._items[0].vtec[0].product == vtec_code.product) and
