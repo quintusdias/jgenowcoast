@@ -1,14 +1,13 @@
 import copy
 import datetime as dt
-import itertools
 import os
 import re
 import sys
 import warnings
-if sys.hexversion < 0x030000:
+if sys.hexversion < 0x03000000:
     from StringIO import StringIO
 else:
-    from io import StringIO
+    from io import BytesIO
 
 import numpy as np
 
@@ -249,8 +248,7 @@ def fetch_events(dirname, numlast=None, current=None):
     for hazard_file in hzlst:
         for bulletin in hazard_file:
             for j, vtec_code in enumerate(bulletin.vtec):
-                gen = itertools.ifilter(lambda x: x.contains(vtec_code), events)
-                evts = list(gen)
+                evts = [x for x in events if x.contains(vtec_code)]
                 if len(evts) == 0:
                     # Must create a new event.
                     events.append(Event(vtec_code, bulletin))
@@ -286,7 +284,8 @@ class HazardsFile(object):
         self.filename = fname
         self._items = []
 
-        with open(fname, 'rt') as f:
+        # Use universal newline support.
+        with open(fname, 'rtU') as f:
             txt = f.read()
 
         # Get the base date from the filename.  The format is
@@ -451,7 +450,7 @@ class Bulletin(object):
         #
         # The 2nd element can be present or not, and there can be at least as
         # many items as there are states.
-        regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)(\r\r\n)?))+)+
+        regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)(\r\r\n|\n\n)?))+)+
                                (?P<day>\d{2})
                                (?P<hour>\d{2})
                                (?P<minute>\d{2})-
@@ -638,11 +637,14 @@ class Bulletin(object):
             return
 
         latlon_txt = m.group('latlon').replace('\n', ' ')
-        nums = np.genfromtxt(StringIO(unicode(latlon_txt)))
+        if sys.hexversion < 0x03000000:
+            nums = np.genfromtxt(StringIO(unicode(latlon_txt)))
+        else:
+            nums = np.genfromtxt(BytesIO(latlon_txt.encode()))
         lats = [float(x)/100.0 for x in nums[0::2]]
         lons = [float(x)/100.0 for x in nums[1::2]]
 
-        self.polygon = zip(lons, lats)
+        self.polygon = [item for item in zip(lons, lats)]
 
     def parse_content(self):
         """
@@ -652,8 +654,8 @@ class Bulletin(object):
         #
         # At least two newlines followed by "..." and the message.
         # The message can contain the "..." pattern, but the end of the
-        # message must be terminated by "..." followed by at least two
-        # end-of-line characters.
+        # headline must be terminated by "..." followed by apparently two
+        # \r\r\n or two \n\n sequences.
         #
         # Some events do not have headlines.  Examples include
         #     FA (areal flood)
@@ -661,24 +663,23 @@ class Bulletin(object):
         #     FL (flood)
         #     SV (severe thunderstorm)
         #     TO (tornado)
-        regex = re.compile(r'''(\r\r\n){2,}
+        regex = re.compile(r'''(\r\r\n|\n\n){2,}
                                \.\.\.
                                (?P<header>[0-9\w\s\./\'-]*?)
                                \.\.\.
-                               (\r\r\n){2,}''', re.VERBOSE)
+                               (\r\r\n|\n\n){2,}''', re.VERBOSE)
         m = regex.search(self._message)
         if m is not None:
             raw_header = m.groupdict()['header']
 
             # Replace any sequence of newlines with just a space.
-            lst = re.split('\r\r\n', raw_header)
-            self.headline = re.sub('\r\r\n', ' ', raw_header)
+            self.headline = re.sub('\r\r\n|\n\n', ' ', raw_header)
 
         else:
             self.headline = None
 
         # Split the message by paragraphs.
-        lst = re.split(r'''\r\r\n\r\r\n''', self._message)
+        lst = re.split(r'''(\r\r\n|\n\n){2}''', self._message)
         header_lst = []
         past_vtec = False
         for stanza in lst:
@@ -694,7 +695,8 @@ class Bulletin(object):
                 continue
 
         txt = '\n\n'.join(header_lst)
-        self.txt = txt.replace('\r\r\n', '\n')
+        self.txt = re.sub(r'''(\r\r\n|\n\n)''', '\n', txt)
+        self.txt = re.sub(r'''\n\n\n''', '\n\n', self.txt)
 
 
 class Event(HazardsFile):
