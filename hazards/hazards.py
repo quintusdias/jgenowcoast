@@ -8,7 +8,7 @@ import warnings
 if sys.hexversion < 0x030000:
     from StringIO import StringIO
 else:
-    from io import StringIO
+    from io import BytesIO
 
 import numpy as np
 
@@ -638,11 +638,14 @@ class Bulletin(object):
             return
 
         latlon_txt = m.group('latlon').replace('\n', ' ')
-        nums = np.genfromtxt(StringIO(unicode(latlon_txt)))
+        if sys.hexversion < 0x03000000:
+            nums = np.genfromtxt(StringIO(unicode(latlon_txt)))
+        else:
+            nums = np.genfromtxt(BytesIO(latlon_txt.encode()))
         lats = [float(x)/100.0 for x in nums[0::2]]
         lons = [float(x)/100.0 for x in nums[1::2]]
 
-        self.polygon = zip(lons, lats)
+        self.polygon = [item for item in zip(lons, lats)]
 
     def parse_content(self):
         """
