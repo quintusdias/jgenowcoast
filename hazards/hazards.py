@@ -486,11 +486,11 @@ class Bulletin(object):
         #    1) the two-char FIPS code (state), the single
         #    2) a single-char county or zone code
         #    3) a sequence of numbers and separators identifying the
-        #       counties/zones
+        #       counties/zones, which might span multiple lines
         #
         ugc_regex = re.compile(r'''(?P<fips>\w{2})
                                    (?P<format>[CZ])
-                                   (?:\d{3}((-|>)(\r\n)?))+
+                                   (?:\d{3}((-|>)(\r\r\n)?))+
                                 ''', re.VERBOSE)
 
         # Within the sequence of counties/zones, must match at least one
@@ -661,17 +661,19 @@ class Bulletin(object):
         #     FL (flood)
         #     SV (severe thunderstorm)
         #     TO (tornado)
-        regex = re.compile(r'''(\s|\r|\n){2,}
+        regex = re.compile(r'''(\r\r\n){2,}
                                \.\.\.
                                (?P<header>[0-9\w\s\./\'-]*?)
                                \.\.\.
-                               (\s|\r|\n){2,}''', re.VERBOSE)
+                               (\r\r\n){2,}''', re.VERBOSE)
         m = regex.search(self._message)
         if m is not None:
             raw_header = m.groupdict()['header']
 
             # Replace any sequence of newlines with just a space.
-            self.headline = re.sub('(\r|\n){2,}', ' ', raw_header)
+            lst = re.split('\r\r\n', raw_header)
+            self.headline = re.sub('\r\r\n', ' ', raw_header)
+
         else:
             self.headline = None
 
