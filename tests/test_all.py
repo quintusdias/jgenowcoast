@@ -49,6 +49,7 @@ class TestHazards(unittest.TestCase):
                         #     if vtec.action == 'NEW':
                         #         action_lst.append((filename, vtec.action))
 
+    @unittest.skip('Active on hold, issue 21')
     def test_fetch_active(self):
         """
         Fetch only events that are active
@@ -170,9 +171,11 @@ class TestHazards(unittest.TestCase):
     def test_basic_svs(self):
         hzf = HazardsFile(fixtures.severe_thunderstorm_file)
 
-        self.assertEqual(len(hzf), 36)
+        self.assertEqual(len(hzf), 74)
+
+        # Make sure that we raise the appropriate error.  Is this is?
         with self.assertRaises(KeyError):
-            hzf[36]
+            hzf[74]
 
         actual = hzf[0].headline
         expected = ('A SEVERE THUNDERSTORM WARNING REMAINS IN EFFECT UNTIL '

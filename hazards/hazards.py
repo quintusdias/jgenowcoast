@@ -270,6 +270,11 @@ def fetch_events(dirname, numlast=None, current=None):
 class HazardsFile(object):
     """
     Collection of hazard messages.
+
+    Attributes
+    ----------
+    filename : str
+        Path to source file
     """
     def __init__(self, fname):
         """
@@ -357,6 +362,7 @@ class Bulletin(object):
         List of lat/lon pairs
     ugc_format : str
         Either 'county' or 'zone'
+    txt : str
     state : dictionary
         The keys consist of FIPS codes, the values consist of a list of
         counties or zones.
@@ -453,7 +459,6 @@ class Bulletin(object):
 
         m = regex.search(self._message)
         if m is None:
-            import ipdb; ipdb.set_trace()
             raise RuntimeError("Could not parse expiration time.")
 
         self._parse_ugc_expiration_date(m.groupdict())
@@ -643,7 +648,6 @@ class Bulletin(object):
         """
         Parse all text information following the Segment Header Block.
         """
-
         # Headlines
         #
         # At least two newlines followed by "..." and the message.
@@ -671,9 +675,8 @@ class Bulletin(object):
         else:
             self.headline = None
 
-        # Split the message by paragraphs, take all those following the
-        # VTEC code stanza.
-        lst = re.split(r'''(?:\r\n){2,}''', self._message)
+        # Split the message by paragraphs.
+        lst = re.split(r'''\r\r\n\r\r\n''', self._message)
         header_lst = []
         past_vtec = False
         for stanza in lst:
@@ -689,7 +692,7 @@ class Bulletin(object):
                 continue
 
         txt = '\n\n'.join(header_lst)
-        self.txt = txt.replace('\r\n', '\n')
+        self.txt = txt.replace('\r\r\n', '\n')
 
 
 class Event(HazardsFile):
