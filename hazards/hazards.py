@@ -296,9 +296,10 @@ class HazardsFile(object):
                                      int(basename[6:8]),
                                      int(basename[8:10]), 0, 0)
 
-        # Split the text into separate messages.  "$$" seems to be a delimeter
-        # that gives us all the messages.  The last item split off is not
-        # a valid message, though.
+        # Split the text into separate messages.  "$$" is used to end the
+        # content block of a non-segmented product and to end the content block
+        # of each segment of a segmented product.
+        # The last item split off is not a valid message, though.
         regex = re.compile(r'''\$\$''')
 
         items = []
