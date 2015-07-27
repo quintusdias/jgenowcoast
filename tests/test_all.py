@@ -1,18 +1,27 @@
 import datetime as dt
+from datetime import datetime
 import os
 import sys
 import unittest
 
 if sys.hexversion < 0x03000000:
+    import mock
     from mock import patch
     from StringIO import StringIO
 else:
+    from unittest import mock
     from unittest.mock import patch
     from io import StringIO
 
 from hazards import HazardsFile, fetch_events
 
 from . import fixtures
+
+
+class FakeDatetime(datetime):
+    "A fake replacement for datetime that can be mocked for testing"
+    def __new__(cls, *args, **kwargs):
+        return datetime.__new__(datetime, *args, **kwargs)
 
 
 class TestHazards(unittest.TestCase):
@@ -49,16 +58,40 @@ class TestHazards(unittest.TestCase):
                         #     if vtec.action == 'NEW':
                         #         action_lst.append((filename, vtec.action))
 
-    @unittest.skip('Active on hold, issue 21')
-    def test_fetch_active(self):
+    def test_fetch_not_necessarily_active(self):
         """
-        Fetch only events that are active
+        Fetch all events, they should all be inactive.
         """
-        dirname = os.path.join('tests', 'data', 'external', 'watch_warn',
-                               'svrlcl')
+        dirname = os.path.join('tests', 'data', 'noaaport', 'nwx',
+                               'watch_warn', 'svrlcl')
+
+        # All these events expired long ago.
+        events = fetch_events(dirname)
+        for event in events:
+            self.assertFalse(event.not_expired())
+
+        # Should result in exactly the same result.
         events = fetch_events(dirname, current=True)
         for event in events:
-            self.assertTrue(event.current())
+            self.assertFalse(event.not_expired())
+
+    @mock.patch('hazards.dt.datetime', FakeDatetime)
+    def test_still_active(self):
+        """
+        Verify that not_expired returns True when correct to do so
+        """
+        FakeDatetime.now = classmethod(lambda cls:  dt.datetime(2015, 7, 24, 8, 0, 0))
+
+        dirname = os.path.join('tests', 'data', 'noaaport', 'nwx',
+                               'watch_warn', 'svrlcl')
+
+        events = fetch_events(dirname)
+        self.assertTrue(events[-1].not_expired())
+        self.assertEqual(len(events), 17)
+
+        events = fetch_events(dirname, current=True)
+        self.assertTrue(events[-1].not_expired())
+        self.assertEqual(len(events), 1)
 
     def test_individual_event(self):
         """
@@ -129,7 +162,7 @@ class TestHazards(unittest.TestCase):
 
     def test_expiration_date_exceeding_file_date(self):
         """
-        The expiration date MUST always lie in the future from the file date.
+        The expiration date should lie in the future from the file date.
         """
         path = os.path.join('tests', 'data', 'noprcp', '2015063017.noprcp')
         hzf = HazardsFile(path)

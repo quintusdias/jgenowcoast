@@ -260,7 +260,7 @@ def fetch_events(dirname, numlast=None, current=None):
                     evt.append(bulletin)
 
     if current is not None and current:
-        events = [event for event in events if event.current()]
+        events = [event for event in events if event.not_expired()]
 
     return events
 
@@ -723,6 +723,14 @@ class Event(HazardsFile):
         return '\n-----\n'.join(lst)
 
     def contains(self, vtec_code):
+        """
+        Test if a specific vtec code is contained in this bulletin.
+
+        Parameters
+        ----------
+        vtec_code : VtecCode
+            VTEC code object
+        """
         if (((self._items[0].vtec[0].product == vtec_code.product) and
              (self._items[0].vtec[0].office_id == vtec_code.office_id) and
              (self._items[0].vtec[0].phenomena == vtec_code.phenomena) and
@@ -734,11 +742,11 @@ class Event(HazardsFile):
     def append(self, bulletin):
         self._items.append(bulletin)
 
-    def current(self):
+    def not_expired(self):
         """
         Is this event still in progress?
         """
-        if self._items[-1].vtec[0].action != 'EXP':
+        if not dt.datetime.now() >= self._items[-1].expiration_time:
             return True
         else:
             return False
