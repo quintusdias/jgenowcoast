@@ -23,5 +23,10 @@ def hzparse():
         raise DirectoryNotFoundException
 
     for file in os.listdir(args.directory):
+
+        # Skip any files with names like ".scour*"
+        if file.startswith('.'):
+            continue
+
         hzf = HazardsFile(os.path.join(args.directory, file))
         print('File:  {} ({} bulletins)'.format(file, len(hzf)))
