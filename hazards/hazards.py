@@ -579,24 +579,11 @@ class Bulletin(object):
             _codes.append(the_vtec_code)
             self.vtec.append(VtecCode(m))
 
-        if len(self.vtec) == 0:
-            msg = "No VTEC codes detected"
-            raise NoVtecCodeException(msg)
-
-        self._id = hash(''.join(_codes))
-
-    @property
-    def id(self):
-        """
-        Return unique identifier based upon the vtec codes
-        """
-        return self._id
-
     def create_wkt(self):
         """
         Formulate WKT from the polygon.
         """
-        if self.polygon is None:
+        if len(self.polygon) == 0:
             self.wkt = None
             return
 
@@ -634,7 +621,6 @@ class Bulletin(object):
         m = regex.search(self._message)
         if m is None:
             warnings.warn('No lat/lon polygon detected.')
-            self.polygon = None
             return
 
         latlon_txt = m.group('latlon').replace('\n', ' ')
