@@ -747,7 +747,7 @@ class Event(HazardsFile):
         """
         Is this event still in progress?
         """
-        if not dt.datetime.now() >= self._items[-1].expiration_time:
+        if not dt.datetime.utcnow() >= self._items[-1].expiration_time:
             return True
         else:
             return False

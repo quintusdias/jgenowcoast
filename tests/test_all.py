@@ -80,7 +80,7 @@ class TestHazards(unittest.TestCase):
         """
         Verify that not_expired returns True when correct to do so
         """
-        FakeDatetime.now = classmethod(lambda cls:  dt.datetime(2015, 7, 24, 8, 0, 0))
+        FakeDatetime.utcnow = classmethod(lambda cls:  dt.datetime(2015, 7, 24, 8, 0, 0))
 
         dirname = os.path.join('tests', 'data', 'noaaport', 'nwx',
                                'watch_warn', 'svrlcl')
