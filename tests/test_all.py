@@ -13,6 +13,7 @@ else:
     from unittest.mock import patch
     from io import StringIO
 
+import hazards
 from hazards import HazardsFile, fetch_events
 
 from . import fixtures
@@ -24,7 +25,31 @@ class FakeDatetime(datetime):
         return datetime.__new__(datetime, *args, **kwargs)
 
 
-class TestHazards(unittest.TestCase):
+class TestHzparser(unittest.TestCase):
+    """
+    Test command line tool for parsing a directory of bulletins
+    """
+
+    def test_directory_not_present(self):
+        """
+        Should error out gracefully when a directory does not exist.
+        """
+        dirname = os.path.join('tests', 'data', 'fflood2')
+        with patch('sys.argv', ['', '--d', dirname]):
+            with self.assertRaises(hazards.command_line.DirectoryNotFoundException):
+                hazards.command_line.hzparse()
+
+    def test_basic(self):
+        """
+        Should be able to read a small directory
+        """
+        dirname = os.path.join('tests', 'data', 'fflood', 'warn')
+        with patch('sys.argv', ['', '--d', dirname]):
+            with patch('sys.stdout', new=StringIO()):
+                hazards.command_line.hzparse()
+
+
+class TestSuite(unittest.TestCase):
     """
     """
     @unittest.skip('not now')
