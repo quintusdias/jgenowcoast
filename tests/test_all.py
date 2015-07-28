@@ -41,9 +41,10 @@ class TestHzparser(unittest.TestCase):
 
     def test_basic(self):
         """
-        Should be able to read a small directory
+        Should be able to read a directory
         """
-        dirname = os.path.join('tests', 'data', 'fflood', 'warn')
+        dirname = os.path.join('tests', 'data', 'noaaport', 'nwx',
+                               'watch_warn', 'svrlcl')
         with patch('sys.argv', ['', '--d', dirname]):
             with patch('sys.stdout', new=StringIO()):
                 hazards.command_line.hzparse()
