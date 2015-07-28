@@ -1,0 +1,21 @@
+
+FPUS63 KDMX 112101
+SEPIA
+
+IAZ001>099-121115-
+
+STATE FORECAST FOR IOWA
+NATIONAL WEATER SERVICE DES MOINES IA
+402 PM CDT WED JUN 11 2008
+
+...HEADLINES...
+
+<text>
+
+&&
+<text continues>
+
+$$
+
+XYZ
+

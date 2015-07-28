@@ -66,37 +66,59 @@ class TestHzparser(unittest.TestCase):
 
 class TestSuite(unittest.TestCase):
     """
+    hurr_lcl:  tropical storm / hurricane watch
+    noprcp:  heat advisory?
+    severe:  severe thunderstorm warning
+    special:  significant weather advisory
+    state_summ:  weather summary
+    svrlcl: severe thunderstorm watch
+    torn_warn:  tornado warning
+    tstrm_warn:  severe thunderstorm warning
+    wcn:  severe thunderstorm watch expiration
+    winter: winter weather advisory
     """
-    @unittest.skip('not now')
-    def test_full_directory(self):
+    def test_appendix_b_example_one(self):
         """
-        Should be able to read an entire directory of statements.
+        non segmented routine product
         """
-        # hurr_lcl:  tropical storm / hurricane watch
-        # noprcp:  heat advisory?
-        # severe:  severe thunderstorm warning
-        # special:  significant weather advisory
-        # state_summ:  weather summary
-        # svrlcl: severe thunderstorm watch
-        # torn_warn:  tornado warning
-        # tstrm_warn:  severe thunderstorm warning
-        # wcn:  severe thunderstorm watch expiration
-        # winter: winter weather advisory
-        #
-        # fflood
-        for level1 in ['fflood', 'watch_warn']:
-            path1 = os.path.join('tests', 'data', 'external', level1)
-            for level2 in os.listdir(path1):
-                path2 = os.path.join(path1, level2)
-                for path3 in os.listdir(path2):
-                    filename = os.path.join(path2, path3)
-                    print(filename)
-                    hzf = HazardsFile(filename)
-                    for h in hzf:
-                        pass
-                        # for vtec in h.vtec:
-                        #     if vtec.action == 'NEW':
-                        #         action_lst.append((filename, vtec.action))
+        path = os.path.join('tests', 'data', 'example1.txt')
+        hzf = HazardsFile(path)
+
+        self.assertEqual(len(hzf), 1)
+        self.assertEqual(hzf[0].expiration_time,
+                         dt.datetime(2008, 6, 12, 11, 15, 0))
+        self.assertEqual(hzf[0].headline, 'HEADLINES')
+
+    def test_appendix_b_example_two(self):
+        """
+        non segmented warning product
+        """
+        path = os.path.join('tests', 'data', 'example2.txt')
+        hzf = HazardsFile(path)
+
+        self.assertEqual(len(hzf), 1)
+        self.assertEqual(hzf[0].expiration_time,
+                         dt.datetime(2008, 6, 4, 19, 15, 0))
+        self.assertIsNone(hzf[0].headline)
+
+        actual = hzf[0].polygon
+        expected = [(88.01, 38.94),
+                    (88.65, 39.03),
+                    (88.7, 39.21),
+                    (88.65, 39.22),
+                    (88.64, 39.22),
+                    (88.48, 39.22),
+                    (88.47, 39.28),
+                    (88.10, 39.38)]
+        self.assertEqual(actual, expected)
+
+        # time, motion, location information
+        self.assertEqual(hzf[0].time_motion_location.time,
+                         dt.datetime(2008, 6, 4, 18, 15, 0))
+        self.assertEqual(hzf[0].time_motion_location.direction, 257)
+        self.assertEqual(hzf[0].time_motion_location.speed, 45)
+        self.assertEqual(hzf[0].time_motion_location.location,
+                         [(88.55, 39.14), ])
 
     def test_fetch_not_necessarily_active(self):
         """

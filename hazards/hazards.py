@@ -1,3 +1,4 @@
+import collections
 import copy
 import datetime as dt
 import os
@@ -31,6 +32,21 @@ _TIMEZONES = {
     "SST": -11,
     "SDT": -10,
     "CHST": 10
+}
+
+_MONTH = {
+    'JAN': 1,
+    'FEB': 2,
+    'MAR': 3,
+    'APR': 4,
+    'MAY': 5,
+    'JUN': 6,
+    'JUL': 7,
+    'AUG': 8,
+    'SEP': 9,
+    'OCT': 10,
+    'NOV': 11,
+    'DEC': 12
 }
 
 _VTEC_PRODUCT_CLASS = {
@@ -141,6 +157,11 @@ vtec_pattern = r'''\/
                    (?P<stop>\d{6}T\d{4}Z)
                  '''
 vtec_regex = re.compile(vtec_pattern, re.VERBOSE)
+
+
+TimeMotionLocation = collections.namedtuple('TimeMotionLocation',
+                                            ['time', 'direction',
+                                             'speed', 'location'])
 
 
 class VtecCode(object):
@@ -296,10 +317,14 @@ class HazardsFile(object):
         # Get the base date from the filename.  The format is
         # YYYYMMDDHH.xxxx
         basename = os.path.basename(fname)
-        file_base_date = dt.datetime(int(basename[0:4]),
-                                     int(basename[4:6]),
-                                     int(basename[6:8]),
-                                     int(basename[8:10]), 0, 0)
+        try:
+            file_base_date = dt.datetime(int(basename[0:4]),
+                                         int(basename[4:6]),
+                                         int(basename[6:8]),
+                                         int(basename[8:10]), 0, 0)
+        except ValueError:
+            # Have not seen this case yet in the wild, but maybe...
+            file_base_date = None
 
         # Split the text into separate messages.  "$$" is used to end the
         # content block of a non-segmented product and to end the content block
@@ -311,7 +336,7 @@ class HazardsFile(object):
         bulletins_already_seen = []
         for text_item in regex.split(txt)[0:-1]:
             try:
-                bltn = Bulletin(text_item, file_base_date)
+                bltn = Bulletin(text_item, base_date=file_base_date)
             except NoVtecCodeException:
                 # If a hurricane file, just ignore it?
                 continue
@@ -363,6 +388,8 @@ class Bulletin(object):
         product content block.  See section 5.1 of [1].
     expiration_time : datetime
         Time at which the product (not the event) expires
+    mnd_issuance_time : datetime
+        MND issuance time
     polygon : list
         List of lat/lon pairs
     ugc_format : str
@@ -371,6 +398,9 @@ class Bulletin(object):
     state : dictionary
         The keys consist of FIPS codes, the values consist of a list of
         counties or zones.
+    time_motion_location : named tuple
+        Fields include time, motion (scalar direction), and list of lat/lon
+        pairs.
     wkt : str
         Well-known text representation of the polygon defining the
         hazard
@@ -380,7 +410,7 @@ class Bulletin(object):
     [1] http://www.nws.noaa.gov/directives/sym/pd01017001curr.pdf
     """
 
-    def __init__(self, txt, base_date):
+    def __init__(self, txt, base_date=None):
         """
         Parameters
         ----------
@@ -390,6 +420,8 @@ class Bulletin(object):
             Date attached to the file from whence this bulletin came.
         """
         self._message = txt
+
+        self.parse_mnd_issuance_time()
         self.base_date = base_date
         self.header = None
         self.polygon = []
@@ -436,6 +468,41 @@ class Bulletin(object):
                          self.wkt)
 
         return txt
+
+    def parse_mnd_issuance_time(self):
+        """
+        Parse the MND issuance Date/Time line.
+
+        Examples look like
+
+        402 PM CDT WED JUN 11 2008
+        """
+        regex = re.compile(r'''(?P<hh>\d{1,2})(?P<mm>\d{2})\s
+                               (?P<meridiem>A|P)M\s
+                               (?P<timezone>\w{3,4})\s
+                               (?P<day_of_week>SUN|MON|TUE|WED|THU|FRI|SAT)\s
+                               (?P<month>\w{3})\s
+                               (?P<dd>\d{1,2})\s
+                               (?P<year>\d{4})
+                            ''', re.VERBOSE)
+        m = regex.search(self._message)
+        if m is None:
+            issuance_dt = None
+        else:
+            gd = m.groupdict()
+            year = int(gd['year'])
+            month = _MONTH[gd['month']]
+            day = int(gd['dd'])
+            hour = int(gd['hh'])
+            minute = int(gd['mm'])
+            issuance_dt = dt.datetime(year, month, day, hour, minute, 0)
+
+            if gd['meridiem'] == 'P':
+                issuance_dt += dt.timedelta(hours=12)
+
+            issuance_dt -= dt.timedelta(hours=_TIMEZONES[gd['timezone']])
+
+        self.mnd_issuance_time = issuance_dt
 
     def parse_universal_geographic_code(self):
         """
@@ -536,30 +603,35 @@ class Bulletin(object):
             Has day, hour, minute fields.  The year and month need to be
             inferred.
         """
+        if self.base_date is not None:
+            base_date = self.base_date
+        else:
+            base_date = self.mnd_issuance_time
+
         exp_day = int(gd['day'])
         exp_hour = int(gd['hour'])
         exp_minute = int(gd['minute'])
-        if exp_day < self.base_date.day:
-            if self.base_date.month == 12:
+        if exp_day < base_date.day:
+            if base_date.month == 12:
                 # Beginning of next year
-                year = self.base_date.year + 1
+                year = base_date.year + 1
                 self.expiration_time = dt.datetime(year, 1,
                                                    exp_day, exp_hour,
                                                    exp_minute, 0)
             else:
                 # Beginning of next month
-                year = self.base_date.year
-                month = self.base_date.month + 1
+                year = base_date.year
+                month = base_date.month + 1
                 self.expiration_time = dt.datetime(year, month,
                                                    exp_day, exp_hour,
                                                    exp_minute, 0)
         else:
-            self.expiration_time = dt.datetime(self.base_date.year,
-                                               self.base_date.month,
+            self.expiration_time = dt.datetime(base_date.year,
+                                               base_date.month,
                                                exp_day, exp_hour,
                                                exp_minute, 0)
 
-        assert self.expiration_time > self.base_date
+        assert self.expiration_time > base_date
 
     def parse_vtec_code(self):
         """
@@ -620,16 +692,55 @@ class Bulletin(object):
             Content of message.
         """
 
-        # Use lookahead to match the polyon only if followed by "TIME"
         regex = re.compile(r"""LAT...LON\s
                                (?P<latlon>[\s\r\n\d{4,5}]*?)
-                               (?=TIME)""", re.VERBOSE)
+                               TIME...MOT...LOC\s
+                               (?P<tml_hh>\d{1,2})
+                               (?P<tml_mm>\d{2})Z\s
+                               (?P<tml_dir>\d{3})DEG\s
+                               (?P<tml_speed>\d{2})KT\s
+                               (?P<tml_loc>[\s\r\n\d{4,5}]+\n\n)
+                            """, re.VERBOSE)
         m = regex.search(self._message)
         if m is None:
             warnings.warn('No lat/lon polygon detected.')
             return
 
-        latlon_txt = m.group('latlon').replace('\n', ' ')
+        self.polygon = self._parse_latlon_pairs(m.group('latlon'))
+
+        # Assemble the time/motion/location information.
+        if self.base_date is not None:
+            base_date = self.base_date
+        else:
+            base_date = self.mnd_issuance_time
+
+        hh = int(m.group('tml_hh'))
+        mm = int(m.group('tml_mm'))
+        tml_time = dt.datetime(base_date.year, base_date.month, base_date.day,
+                               hh, mm, 0)
+        tml_dir = int(m.group('tml_dir'))
+        tml_speed = int(m.group('tml_speed'))
+        tml_latlon = self._parse_latlon_pairs(m.group('tml_loc'))
+        self.time_motion_location = TimeMotionLocation(time=tml_time,
+                                                       direction=tml_dir,
+                                                       speed=tml_speed,
+                                                       location=tml_latlon)
+
+    def _parse_latlon_pairs(self, text):
+        """
+        Parse lon/lat pairs from text.
+
+        Parameters
+        ----------
+        text : str
+            e.g.
+
+            "4862 10197 4828 10190 4827 10223 4851 10259\r\r\n"
+            "4870 10238"
+
+            It could be a single point.
+        """
+        latlon_txt = text.replace('\n', ' ')
         if sys.hexversion < 0x03000000:
             nums = np.genfromtxt(StringIO(unicode(latlon_txt)))
         else:
@@ -637,7 +748,7 @@ class Bulletin(object):
         lats = [float(x)/100.0 for x in nums[0::2]]
         lons = [float(x)/100.0 for x in nums[1::2]]
 
-        self.polygon = [item for item in zip(lons, lats)]
+        return [item for item in zip(lons, lats)]
 
     def parse_content(self):
         """
