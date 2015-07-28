@@ -221,6 +221,11 @@ class NoVtecCodeException(Exception):
         self.message = message
 
 
+class UGCParsingError(Exception):
+    def __init__(self, message):
+        self.message = message
+
+
 def fetch_events(dirname, numlast=None, current=None):
     """
     Parameters
@@ -458,7 +463,9 @@ class Bulletin(object):
 
         m = regex.search(self._message)
         if m is None:
-            raise RuntimeError("Could not parse expiration time.")
+            msg = 'Could not parse the expiration time.\n\n{}'
+            msg = msg.format(self._message)
+            raise UGCParsingError(msg)
 
         self._parse_ugc_expiration_date(m.groupdict())
         self._parse_ugc_geography(m.group())

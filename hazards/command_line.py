@@ -1,7 +1,7 @@
 import argparse
 import os
 
-from .hazards import HazardsFile
+from .hazards import HazardsFile, UGCParsingError
 
 
 class DirectoryNotFoundException(Exception):
@@ -28,5 +28,9 @@ def hzparse():
         if file.startswith('.'):
             continue
 
-        hzf = HazardsFile(os.path.join(args.directory, file))
+        try:
+            hzf = HazardsFile(os.path.join(args.directory, file))
+        except UGCParsingError as e:
+            print(e)
+            continue
         print('File:  {} ({} bulletins)'.format(file, len(hzf)))
