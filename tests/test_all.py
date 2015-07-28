@@ -15,6 +15,7 @@ else:
 
 import hazards
 from hazards import HazardsFile, fetch_events
+from hazards.command_line import DirectoryNotFoundException
 
 from . import fixtures
 
@@ -36,7 +37,7 @@ class TestHzparser(unittest.TestCase):
         """
         dirname = os.path.join('tests', 'data', 'fflood2')
         with patch('sys.argv', ['', '--d', dirname]):
-            with self.assertRaises(hazards.command_line.DirectoryNotFoundException):
+            with self.assertRaises(DirectoryNotFoundException):
                 hazards.command_line.hzparse()
 
     def test_basic(self):
@@ -106,7 +107,8 @@ class TestSuite(unittest.TestCase):
         """
         Verify that not_expired returns True when correct to do so
         """
-        FakeDatetime.utcnow = classmethod(lambda cls:  dt.datetime(2015, 7, 24, 8, 0, 0))
+        fake_utcnow = lambda cls:  dt.datetime(2015, 7, 24, 8, 0, 0)
+        FakeDatetime.utcnow = classmethod(fake_utcnow)
 
         dirname = os.path.join('tests', 'data', 'noaaport', 'nwx',
                                'watch_warn', 'svrlcl')
@@ -157,6 +159,35 @@ class TestSuite(unittest.TestCase):
         self.assertEqual(hzf[0].expiration_time,
                          dt.datetime(2015, 6, 27, 16, 0, 0))
 
+    def test_fflood_statment(self):
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'fflood',
+                            'statment', '2015072313.sttmnt')
+        hzf = HazardsFile(path)
+
+        self.assertEqual(len(hzf), 5)
+
+        # No headline
+        self.assertIsNone(hzf[0].headline)
+
+        self.assertEqual(hzf[0].expiration_time,
+                         dt.datetime(2015, 7, 24, 13, 2, 0))
+
+        # No VTEC code here
+        self.assertEqual(len(hzf[0].vtec), 0)
+
+        # No polygon here
+        self.assertEqual(len(hzf[0].polygon), 0)
+
+        # No polygon, so no WKT
+        self.assertIsNone(hzf[0].wkt)
+
+        # The UGC line is "MOC099-189-241302-"
+        self.assertEqual(hzf[0].ugc_format, 'county')
+        self.assertEqual(hzf[0].states, {'MO': [99, 189]})
+
+        # We have text...
+        self.assertIsNotNone(hzf[0].txt)
+
     def test_multiple_vtec_codes(self):
         """
         Multiple VTEC codes are possible.
@@ -164,26 +195,28 @@ class TestSuite(unittest.TestCase):
         path = os.path.join('tests', 'data', 'special', '2015062721.special')
         hzf = HazardsFile(path)
 
-        self.assertEqual(hzf[0].vtec[0].product, 'O')
-        self.assertEqual(hzf[0].vtec[0].action, 'UPG')
-        self.assertEqual(hzf[0].vtec[0].office_id, 'KBOI')
-        self.assertEqual(hzf[0].vtec[0].phenomena, 'FW')
-        self.assertEqual(hzf[0].vtec[0].significance, 'A')
-        self.assertEqual(hzf[0].vtec[0].event_tracking_id, 1)
-        self.assertEqual(hzf[0].vtec[0].event_beginning_time,
+        self.assertEqual(len(hzf), 133)
+
+        self.assertEqual(hzf[11].vtec[0].product, 'O')
+        self.assertEqual(hzf[11].vtec[0].action, 'UPG')
+        self.assertEqual(hzf[11].vtec[0].office_id, 'KBOI')
+        self.assertEqual(hzf[11].vtec[0].phenomena, 'FW')
+        self.assertEqual(hzf[11].vtec[0].significance, 'A')
+        self.assertEqual(hzf[11].vtec[0].event_tracking_id, 1)
+        self.assertEqual(hzf[11].vtec[0].event_beginning_time,
                          dt.datetime(2015, 6, 28, 21, 0, 0))
-        self.assertEqual(hzf[0].vtec[0].event_ending_time,
+        self.assertEqual(hzf[11].vtec[0].event_ending_time,
                          dt.datetime(2015, 6, 29, 6, 0, 0))
 
-        self.assertEqual(hzf[0].vtec[1].product, 'O')
-        self.assertEqual(hzf[0].vtec[1].action, 'NEW')
-        self.assertEqual(hzf[0].vtec[1].office_id, 'KBOI')
-        self.assertEqual(hzf[0].vtec[1].phenomena, 'FW')
-        self.assertEqual(hzf[0].vtec[1].significance, 'W')
-        self.assertEqual(hzf[0].vtec[1].event_tracking_id, 1)
-        self.assertEqual(hzf[0].vtec[1].event_beginning_time,
+        self.assertEqual(hzf[11].vtec[1].product, 'O')
+        self.assertEqual(hzf[11].vtec[1].action, 'NEW')
+        self.assertEqual(hzf[11].vtec[1].office_id, 'KBOI')
+        self.assertEqual(hzf[11].vtec[1].phenomena, 'FW')
+        self.assertEqual(hzf[11].vtec[1].significance, 'W')
+        self.assertEqual(hzf[11].vtec[1].event_tracking_id, 1)
+        self.assertEqual(hzf[11].vtec[1].event_beginning_time,
                          dt.datetime(2015, 6, 28, 21, 0, 0))
-        self.assertEqual(hzf[0].vtec[1].event_ending_time,
+        self.assertEqual(hzf[11].vtec[1].event_ending_time,
                          dt.datetime(2015, 6, 29, 6, 0, 0))
 
     def test_expiration_date_exceeding_file_date(self):
