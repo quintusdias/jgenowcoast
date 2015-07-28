@@ -446,12 +446,11 @@ class Bulletin(object):
         [1] http://www.nws.noaa.gov/directives/sym/pd01017002curr.pdf
         """
 
-        # The event can cross states, so that part can consist of one or more
-        # codes.
+        # The UGC code can cross multiple lines.
         #
-        # The 2nd element can be present or not, and there can be at least as
-        # many items as there are states.
-        regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)(\r\r\n|\n\n)?))+)+
+        # The standard doesn't say so, but there can apparently be a space
+        # just before the end-of-line delimeter.
+        regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)\s?(\r\r\n|\n\n)?))+)+
                                (?P<day>\d{2})
                                (?P<hour>\d{2})
                                (?P<minute>\d{2})-

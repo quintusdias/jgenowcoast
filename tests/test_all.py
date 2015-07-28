@@ -159,7 +159,24 @@ class TestSuite(unittest.TestCase):
         self.assertEqual(hzf[0].expiration_time,
                          dt.datetime(2015, 6, 27, 16, 0, 0))
 
+    def test_fflood_statment_expiration_time(self):
+        """
+        Verify parsing the expiration time
+
+        See issue #28
+        """
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'fflood',
+                            'statment', '2015072314.sttmnt')
+        hzf = HazardsFile(path)
+        self.assertEqual(hzf[3].expiration_time,
+                         dt.datetime(2015, 7, 24, 14, 26, 0))
+
     def test_fflood_statment(self):
+        """
+        Should not say there are no bulletins
+
+        See issue #27
+        """
         path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'fflood',
                             'statment', '2015072313.sttmnt')
         hzf = HazardsFile(path)
