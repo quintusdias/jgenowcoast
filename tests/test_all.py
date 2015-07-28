@@ -50,6 +50,19 @@ class TestHzparser(unittest.TestCase):
             with patch('sys.stdout', new=StringIO()):
                 hazards.command_line.hzparse()
 
+    def test_skip(self):
+        """
+        Should not error out
+
+        See issues #28, #29
+        """
+        dirname = os.path.join('tests', 'data', 'noaaport', 'nwx', 'fflood',
+                               'statment')
+        with patch('sys.argv', ['', '--d', dirname]):
+            with patch('sys.stdout', new=StringIO()):
+                hazards.command_line.hzparse()
+        self.assertTrue(True)
+
 
 class TestSuite(unittest.TestCase):
     """
