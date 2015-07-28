@@ -6,10 +6,13 @@ if sys.hexversion < 0x03000000:
     install_requires.append('mock>=1.0.1')
 
 kwargs = {'name': 'hazards',
-          'description': 'Tools for interrogating NWS hazards messages',
-          'version': '0.0.1',
-          'install_requires': install_requires,
           'author':  'John Evans',
-          'packages': ['hazards']}
+          'description': 'Tools for interrogating NWS hazards messages',
+          'entry_points':  {
+              'console_scripts': ['hzparse=hazards.command_line:hzparse'],
+          },
+          'install_requires': install_requires,
+          'packages': ['hazards'],
+          'version': '0.0.1',}
 
 setup(**kwargs)
