@@ -464,7 +464,7 @@ class Bulletin(object):
         m = regex.search(self._message)
         if m is None:
             msg = 'Could not parse the expiration time.\n\n{}'
-            msg = msg.format(self._message)
+            msg = msg.format(self._message.replace('\n\n', '\n'))
             raise UGCParsingError(msg)
 
         self._parse_ugc_expiration_date(m.groupdict())

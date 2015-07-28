@@ -31,6 +31,7 @@ def hzparse():
         try:
             hzf = HazardsFile(os.path.join(args.directory, file))
         except UGCParsingError as e:
-            print(e)
+            print('File:  {}'.format(file))
+            print(e.message)
             continue
         print('File:  {} ({} bulletins)'.format(file, len(hzf)))
