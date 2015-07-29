@@ -1,10 +1,17 @@
+"""
+References
+----------
+[1] National Weather Service Instruction 10-1702, November 11, 2010, Operations
+and Services, Dissemination Services NWSPD 10-17, Universal Geographic CODE
+(UGC), http://www.nws.noaa.gov/directives/sym/pd01017002curr.pdf
+"""
+
 import collections
 import copy
 import datetime as dt
 import os
 import re
 import sys
-import warnings
 if sys.hexversion < 0x03000000:
     from StringIO import StringIO
 else:
@@ -181,7 +188,7 @@ class VtecCode(object):
         issuance.  The first time any VTEC event is included, it starts
         as a NEW.   The other action codes are used in followup products,
         except for the last one in the list, ROU (for routine).
-    office_id : str
+    office : str
         4-character code identifying the origin of the bulletin
     phenomena : str
         two-character code describes the specific meteorological or hydrologic
@@ -231,7 +238,7 @@ class VtecCode(object):
 
         self.product = gd['product_class']
         self.action = gd['action_code']
-        self.office_id = gd['office_id']
+        self.office = gd['office_id']
         self.phenomena = gd['phenomena']
         self.significance = gd['significance']
         self.event_tracking_id = int(gd['event_tracking_id'])
@@ -272,18 +279,19 @@ def fetch_events(dirname, numlast=None, current=None):
 
     events = []
     for hazard_file in hzlst:
-        for bulletin in hazard_file:
-            for j, vtec_code in enumerate(bulletin.vtec):
-                evts = [x for x in events if x.contains(vtec_code)]
-                if len(evts) == 0:
-                    # Must create a new event.
-                    events.append(Event(vtec_code, bulletin))
-                else:
-                    # The event already exists.  Just add this bulletin to the
-                    # sequence of events.
-                    assert len(evts) == 1
-                    evt = evts[0]
-                    evt.append(bulletin)
+        for product in hazard_file:
+            for segment in product.segments:
+                for j, vtec_code in enumerate(segment.vtec):
+                    evts = [x for x in events if x.contains(vtec_code)]
+                    if len(evts) == 0:
+                        # Must create a new event.
+                        events.append(Event(vtec_code, segment))
+                    else:
+                        # The event already exists.  Just add this bulletin to
+                        # the sequence of events.
+                        assert len(evts) == 1
+                        evt = evts[0]
+                        evt.append(segment)
 
     if current is not None and current:
         events = [event for event in events if event.not_expired()]
@@ -326,30 +334,33 @@ class HazardsFile(object):
             # Have not seen this case yet in the wild, but maybe...
             file_base_date = None
 
-        # Split the text into separate messages.  "$$" is used to end the
-        # content block of a non-segmented product and to end the content block
-        # of each segment of a segmented product.
-        # The last item split off is not a valid message, though.
-        regex = re.compile(r'''\$\$''')
+        # Split the text into separate events.  "$$" normally marks the end
+        # of a product, but only if NOT followed by a UGC string.  Use negative
+        # lookahead to accomplish this.
+        #
+        # The regular expression used below is based on the regular expression
+        # used in the parse_universal_geographic_code method.  Consult that
+        # method for help in deciphering the regular expression and please
+        # consult reference [1]
+        #
+        # It would be nice if we could use regexp.split to get the segment
+        # chunks, but split will not split on an empty pattern match.
+        regex = re.compile(r'''\$\$(?!\n\n\n\n(\w{2}[CZ](\d{3}(-|>))+))''')
+        # regex = re.compile(r'''\$\$
+        #                        (?!\n\n\n\n
+        #                            (\w{2}[CZ](\d{3}(-|>))+\s?(\n\n)?)
+        #                            +\d{6}-)''', re.VERBOSE)
 
-        items = []
-        bulletins_already_seen = []
-        for text_item in regex.split(txt)[0:-1]:
-            try:
-                bltn = Bulletin(text_item, base_date=file_base_date)
-            except NoVtecCodeException:
-                # If a hurricane file, just ignore it?
-                continue
+        start = 0
+        self._items = []
+        for match in regex.finditer(txt):
+            stop = match.span()[0]
+            text_item = txt[start:stop]
+            prod = Product(text_item, base_date=file_base_date)
 
-            # Is this a repeat of the last message?
-            # if bltn.id in bulletins_already_seen:
-            if bltn._message in bulletins_already_seen:
-                continue
+            self._items.append(prod)
 
-            bulletins_already_seen.append(bltn._message)
-            items.append(bltn)
-
-        self._items = items
+            start = stop
 
     def __str__(self):
         return "Filename:  {}".format(self.filename)
@@ -362,7 +373,7 @@ class HazardsFile(object):
 
     def __len__(self):
         """
-        Implements built-in len(), returns number of Bulletin objects.
+        Implements built-in len(), returns number of Product objects.
         """
         return len(self._items)
 
@@ -370,45 +381,108 @@ class HazardsFile(object):
         """
         Implement index lookup.
         """
+        if isinstance(idx, slice):
+            start = idx.start
+            stop = idx.stop
+            step = idx.step
+            return self._items[start:stop:step]
         if idx >= len(self):
             raise KeyError(str(idx))
 
         return self._items[idx]
 
 
-class Bulletin(object):
+class Product(object):
     """
+    Entire segmented or non-segmented message issued to public
+
     Attributes
     ----------
-    base_date : datetime
-        Base time as indicated by name of hazards file from whence all this
-        information comes
-    headline : str
-        One or more headlines that may begin the narrative/data part of the
-        product content block.  See section 5.1 of [1].
-    expiration_time : datetime
-        Time at which the product (not the event) expires
-    mnd_issuance_time : datetime
-        MND issuance time
-    polygon : list
-        List of lat/lon pairs
-    ugc_format : str
-        Either 'county' or 'zone'
-    txt : str
-    state : dictionary
-        The keys consist of FIPS codes, the values consist of a list of
-        counties or zones.
-    time_motion_location : named tuple
-        Fields include time, motion (scalar direction), and list of lat/lon
-        pairs.
-    wkt : str
-        Well-known text representation of the polygon defining the
-        hazard
-
-    Ref
-    ---
-    [1] http://www.nws.noaa.gov/directives/sym/pd01017001curr.pdf
+    segments : list
+        Segments contained in this product.  An unsegmented product is treated
+        as a product with a single segment.
     """
+
+    def __init__(self, txt, base_date):
+        """
+        Parameters
+        ----------
+        txt : str
+            Text constituting the entire product
+        base_date : datetime.datetime
+            Date attached to the file from whence this bulletin came.
+        office : str
+            ID of issuing office
+        wmo_dtype, wmo_geog, wmo_code, wmo_retrans : str, str, int, str
+            As defined in [1]
+        wmo_issuance_time : datetime.datetime
+            product issuance time in UTC
+        awips_product, awips_location_id : str, str
+            As defined in [1]
+        """
+        self._txt = txt
+        self.base_date = base_date
+
+        self.segments = []
+        self.parse_wmo_abbreviated_heading_awips_id()
+
+        # Each segment is delimited by "$$"
+        lst = re.split('\$\$', self._txt)
+        for text_item in lst:
+            try:
+                segment = Segment(text_item, base_date)
+                self.segments.append(segment)
+            except InvalidSegmentException:
+                pass
+
+    def parse_wmo_abbreviated_heading_awips_id(self):
+        regex = re.compile(r'''(?P<dtype_form>\w{2})
+                               (?P<geog>\w{2})
+                               (?P<code>\d{2})\s
+                               (?P<office>\w{4})\s
+                               (?P<dd>\d{2})(?P<hh>\d{2})(?P<mm>\d{2})
+                               (\s(?P<retrans>\w{3}))?\n\n
+                               (?P<awips_product>\w{3})
+                               (?P<awips_loc_id>\w[A-Z\s]{2})''', re.VERBOSE)
+        m = regex.search(self._txt)
+
+        self.wmo_dtype = m.group('dtype_form')
+        self.wmo_geog = m.group('geog')
+        self.wmo_code = int(m.group('code'))
+        self.wmo_office = m.group('office')
+
+        day = int(m.group('dd'))
+        hour = int(m.group('hh'))
+        minute = int(m.group('mm'))
+
+        self.wmo_issuance_time = adjust_to_base_date(self.base_date,
+                                                     day, hour, minute)
+
+        self.wmo_retrans = m.group('retrans')
+        self.awips_product = m.group('awips_product')
+        self.awips_location_id = m.group('awips_loc_id')
+
+    def __str__(self):
+        return "Product:  {} segments".format(len(self))
+
+    def __iter__(self):
+        """
+        Implements iterator protocol.
+        """
+        return iter(self.segments)
+
+    def __len__(self):
+        """
+        Implements built-in len(), returns number of segments
+        """
+        return len(self.segments)
+
+
+class InvalidSegmentException(Exception):
+    pass
+
+
+class Segment(object):
 
     def __init__(self, txt, base_date=None):
         """
@@ -418,253 +492,71 @@ class Bulletin(object):
             Text constituting the entire bulletin
         base_date : datetime.datetime
             Date attached to the file from whence this bulletin came.
+        expiration_date : datetime.datetime
+            See [1]
+        states : dict
+            Maps states to the 3-digit FIPS codes for associated counties /
+            parishes / zones.
+        ugc_format : str
+            Either 'county' or 'zone'
         """
-        self._message = txt
+        if len(txt) < 10:
+            raise InvalidSegmentException()
 
-        self.parse_mnd_issuance_time()
+        self.txt = txt
         self.base_date = base_date
-        self.header = None
+
+        self.parse_mnd_header()
+        self.parse_segment_header()
+        self.parse_content_block()
+        self.parse_communications_trailer()
+
+        # Clean up the text a bit.
+        self.txt = self.txt.replace('\n\n', '\n').strip('\x01')
+
+    def parse_content_block(self):
+        """
+        Parse all text information following the Segment Header Block.
+        """
+        self.parse_headlines()
+        self.parse_narrative()
+        self.parse_call_to_action()
+        self.parse_lat_lon()
+        self.parse_time_motion_location()
+
+    def parse_lat_lon(self):
+        """
+        Parse the lat/lon polygon from the product content block.
+
+        The section of text might look as follows:
+
+        LAT...LON 4862 10197 4828 10190 4827 10223 4851 10259
+              4870 10238
+        TIME...MOT...LOC 2108Z 303DEG 38KT 4851 10225
+            Content of message.
+        """
         self.polygon = []
         self.wkt = None
 
-        self.parse_vtec_code()
-        self.parse_content()
-        self.parse_universal_geographic_code()
-        self.parse_polygon()
+        # Look for the constant LAT...LON string, and then
+        #     at least one space, maybe more
+        #     ... followed by indeterminate number of lat/lon pairs
+        #     ... terminated by the carriage return sequence
+        #     and match this pattern at least one, maybe more
+        regex = re.compile(r'''LAT...LON(?P<latlon>(((\s+(\d{4,5}\s\d{4,5}\s?)
+                                                         +\n\n)+)))''',
+                           re.VERBOSE)
+        m = regex.search(self.txt)
+        if m is None:
+            return
+
+        self.polygon = self._parse_latlon_pairs(m.group('latlon'))
         self.create_wkt()
-
-    def __str__(self):
-
-        # First formulate strings for all the VTEC codes.  Usually, but not
-        # always, there is just one.
-        lst = ['Product: {}', 'Action: {}', 'Office: {}', 'Phenomena: {}',
-               'Significance: {}', 'Event Tracking Number: {}',
-               'Beginning Time: {}', 'Ending Time: {}']
-        fmt = '\n'.join(lst)
-
-        vtec_strs = []
-        for vtec_code in self.vtec:
-            txt = fmt.format(_VTEC_PRODUCT_CLASS[vtec_code.product],
-                             _VTEC_ACTION_CODE[vtec_code.action],
-                             vtec_code.office_id,
-                             _VTEC_PHENOMENA[vtec_code.phenomena],
-                             _VTEC_SIGNIFICANCE[vtec_code.significance],
-                             vtec_code.event_tracking_id,
-                             vtec_code.event_beginning_time,
-                             vtec_code.event_ending_time)
-            vtec_strs.append(txt)
-
-        if len(vtec_strs) > 1:
-            vtec_strs.insert(0, '')
-            vtec_strs.append('')
-        all_vtecs = '\n=====\n'.join(vtec_strs)
-
-        # Now formulate the main informal string representation by adding the
-        # header to the top, and the expiration time and wkt to the bottom.
-        lst = ['Headline: {}', '{}', 'Expiration Time: {}',
-               'Well Known Text: {}']
-        fmt = '\n'.join(lst)
-        txt = fmt.format(self.headline, all_vtecs, self.expiration_time,
-                         self.wkt)
-
-        return txt
-
-    def parse_mnd_issuance_time(self):
-        """
-        Parse the MND issuance Date/Time line.
-
-        Examples look like
-
-        402 PM CDT WED JUN 11 2008
-        """
-        regex = re.compile(r'''(?P<hh>\d{1,2})(?P<mm>\d{2})\s
-                               (?P<meridiem>A|P)M\s
-                               (?P<timezone>\w{3,4})\s
-                               (?P<day_of_week>SUN|MON|TUE|WED|THU|FRI|SAT)\s
-                               (?P<month>\w{3})\s
-                               (?P<dd>\d{1,2})\s
-                               (?P<year>\d{4})
-                            ''', re.VERBOSE)
-        m = regex.search(self._message)
-        if m is None:
-            issuance_dt = None
-        else:
-            gd = m.groupdict()
-            year = int(gd['year'])
-            month = _MONTH[gd['month']]
-            day = int(gd['dd'])
-            hour = int(gd['hh'])
-            minute = int(gd['mm'])
-            issuance_dt = dt.datetime(year, month, day, hour, minute, 0)
-
-            if gd['meridiem'] == 'P':
-                issuance_dt += dt.timedelta(hours=12)
-
-            issuance_dt -= dt.timedelta(hours=_TIMEZONES[gd['timezone']])
-
-        self.mnd_issuance_time = issuance_dt
-
-    def parse_universal_geographic_code(self):
-        """
-        Parse the UGC and product expiration time.
-
-        Examples of the UGC line might look like
-
-            PAC007-073-212130-
-            GAZ087-088-099>101-114>119-137>141-SCZ040-042>045-047>052-242200-
-
-        Reference
-        ---------
-        [1] http://www.nws.noaa.gov/directives/sym/pd01017002curr.pdf
-        """
-
-        # The UGC code can cross multiple lines.
-        #
-        # The standard doesn't say so, but there can apparently be a space
-        # just before the end-of-line delimeter.
-        regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)\s?(\r\r\n|\n\n)?))+)+
-                               (?P<day>\d{2})
-                               (?P<hour>\d{2})
-                               (?P<minute>\d{2})-
-                            ''', re.VERBOSE)
-
-        m = regex.search(self._message)
-        if m is None:
-            msg = 'Could not parse the expiration time.\n\n{}'
-            msg = msg.format(self._message.replace('\n\n', '\n'))
-            raise UGCParsingError(msg)
-
-        self._parse_ugc_expiration_date(m.groupdict())
-        self._parse_ugc_geography(m.group())
-
-    def _parse_ugc_geography(self, txt):
-        """
-        Now parse the geographic information.
-
-        The UGC takes the form
-
-            SSFNNN-NNN>NNN-SSFNNN-DDHHMM-
-
-        So capture the 2-char FIPS code, the single char format code,
-        and then an indeterminite number of county/zone codes.  Wash, rinse,
-        repeat.
-
-        Parameters
-        ----------
-        txt : str
-            UGC string
-        """
-        # Must match:
-        #
-        #    1) the two-char FIPS code (state), the single
-        #    2) a single-char county or zone code
-        #    3) a sequence of numbers and separators identifying the
-        #       counties/zones, which might span multiple lines
-        #
-        ugc_regex = re.compile(r'''(?P<fips>\w{2})
-                                   (?P<format>[CZ])
-                                   (?:\d{3}((-|>)(\r\r\n)?))+
-                                ''', re.VERBOSE)
-
-        # Within the sequence of counties/zones, must match at least one
-        # 3-digit code for a county or zone, but possibly an entire range
-        # of zones.  If the separator is '>', that means a range of zones.
-        cty_regex = re.compile(r'''(\d{3})(-|>\d{3}-)''', re.VERBOSE)
-
-        states = {}
-        for m in ugc_regex.finditer(txt):
-            state = m.groupdict()['fips']
-            format = m.groupdict()['format']
-
-            codes = []
-            for item in cty_regex.findall(m.group()):
-                if item[1] == '-':
-                    # single county or zone
-                    codes.append(int(item[0]))
-                else:
-                    # multiple zones
-                    # The matched string was something like "114>117-"
-                    # which means that zones 114, 115, 116, and 117 were
-                    # intended.  Can never have a range of counties.
-                    for code in range(int(item[0]), int(item[1][1:4]) + 1):
-                        codes.append(code)
-            states[state] = codes
-
-        self.states = states
-        self.ugc_format = 'county' if format == 'C' else 'zone'
-
-    def _parse_ugc_expiration_date(self, gd):
-        """
-        Construct the expiration date from the UGC.
-
-        Parameters
-        -----------
-        gd : regular expression match object dictionary
-            Has day, hour, minute fields.  The year and month need to be
-            inferred.
-        """
-        if self.base_date is not None:
-            base_date = self.base_date
-        else:
-            base_date = self.mnd_issuance_time
-
-        exp_day = int(gd['day'])
-        exp_hour = int(gd['hour'])
-        exp_minute = int(gd['minute'])
-        if exp_day < base_date.day:
-            if base_date.month == 12:
-                # Beginning of next year
-                year = base_date.year + 1
-                self.expiration_time = dt.datetime(year, 1,
-                                                   exp_day, exp_hour,
-                                                   exp_minute, 0)
-            else:
-                # Beginning of next month
-                year = base_date.year
-                month = base_date.month + 1
-                self.expiration_time = dt.datetime(year, month,
-                                                   exp_day, exp_hour,
-                                                   exp_minute, 0)
-        else:
-            self.expiration_time = dt.datetime(base_date.year,
-                                               base_date.month,
-                                               exp_day, exp_hour,
-                                               exp_minute, 0)
-
-        assert self.expiration_time > base_date
-
-    def parse_vtec_code(self):
-        """
-        Parse the VTEC string from the message.
-
-        Look for text that looks something like
-
-        /O.CON.KPBZ.SV.W.0094.000000T0000Z-150621T2130Z
-
-        There can be more than one.
-
-        Parameters
-        ----------
-        txt : str
-            Content of message.
-        """
-        self.vtec = []
-
-        _codes = []
-
-        for m in vtec_regex.finditer(self._message):
-            the_vtec_code = m.group()
-            _codes.append(the_vtec_code)
-            self.vtec.append(VtecCode(m))
 
     def create_wkt(self):
         """
         Formulate WKT from the polygon.
         """
-        if len(self.polygon) == 0:
-            self.wkt = None
-            return
-
         # Must include the first point as the last point.
         lst = copy.deepcopy(self.polygon)
         lst.append(lst[0])
@@ -676,48 +568,35 @@ class Bulletin(object):
 
         self.wkt = 'POLYGON(({}))'.format(txt)
 
-    def parse_polygon(self):
+    def parse_time_motion_location(self):
         """
-        Parse the lat/lon polygon from the message.
+        Parse the time/motion/location info from the product content block.
 
         The section of text might look as follows:
 
         LAT...LON 4862 10197 4828 10190 4827 10223 4851 10259
               4870 10238
         TIME...MOT...LOC 2108Z 303DEG 38KT 4851 10225
-
-        Parameters
-        ----------
-        txt : str
             Content of message.
         """
+        self.time_motion_location = None
 
-        regex = re.compile(r"""LAT...LON\s
-                               (?P<latlon>[\s\r\n\d{4,5}]*?)
-                               TIME...MOT...LOC\s
+        regex = re.compile(r"""TIME...MOT...LOC\s
                                (?P<tml_hh>\d{1,2})
                                (?P<tml_mm>\d{2})Z\s
                                (?P<tml_dir>\d{3})DEG\s
                                (?P<tml_speed>\d{2})KT\s
                                (?P<tml_loc>[\s\r\n\d{4,5}]+\n\n)
                             """, re.VERBOSE)
-        m = regex.search(self._message)
+        m = regex.search(self.txt)
         if m is None:
-            warnings.warn('No lat/lon polygon detected.')
             return
 
-        self.polygon = self._parse_latlon_pairs(m.group('latlon'))
-
         # Assemble the time/motion/location information.
-        if self.base_date is not None:
-            base_date = self.base_date
-        else:
-            base_date = self.mnd_issuance_time
-
         hh = int(m.group('tml_hh'))
         mm = int(m.group('tml_mm'))
-        tml_time = dt.datetime(base_date.year, base_date.month, base_date.day,
-                               hh, mm, 0)
+        tml_time = dt.datetime(self.base_date.year, self.base_date.month,
+                               self.base_date.day, hh, mm, 0)
         tml_dir = int(m.group('tml_dir'))
         tml_speed = int(m.group('tml_speed'))
         tml_latlon = self._parse_latlon_pairs(m.group('tml_loc'))
@@ -750,57 +629,244 @@ class Bulletin(object):
 
         return [item for item in zip(lons, lats)]
 
-    def parse_content(self):
-        """
-        Parse all text information following the Segment Header Block.
-        """
-        # Headlines
-        #
-        # At least two newlines followed by "..." and the message.
-        # The message can contain the "..." pattern, but the end of the
-        # headline must be terminated by "..." followed by apparently two
-        # \r\r\n or two \n\n sequences.
-        #
-        # Some events do not have headlines.  Examples include
-        #     FA (areal flood)
-        #     FF (flash flood)
-        #     FL (flood)
-        #     SV (severe thunderstorm)
-        #     TO (tornado)
-        regex = re.compile(r'''(\r\r\n|\n\n){2,}
+    def parse_narrative(self):
+        pass
+
+    def parse_call_to_action(self):
+        pass
+
+    def parse_communications_trailer(self):
+        pass
+
+    def parse_headlines(self):
+        regex = re.compile(r'''\n\n\n\n
                                \.\.\.
                                (?P<header>[0-9\w\s\./\'-]*?)
                                \.\.\.
-                               (\r\r\n|\n\n){2,}''', re.VERBOSE)
-        m = regex.search(self._message)
+                               \n\n\n\n''', re.VERBOSE)
+        m = regex.search(self.txt)
         if m is not None:
-            raw_header = m.groupdict()['header']
+            raw_header = m.group('header')
 
             # Replace any sequence of newlines with just a space.
-            self.headline = re.sub('\r\r\n|\n\n', ' ', raw_header)
+            self.headline = re.sub('\n\n', ' ', raw_header)
 
         else:
             self.headline = None
 
-        # Split the message by paragraphs.
-        lst = re.split(r'''(\r\r\n|\n\n){2}''', self._message)
-        header_lst = []
-        past_vtec = False
-        for stanza in lst:
+    def parse_segment_header(self):
+        """
+        Parse the segment header
 
-            if past_vtec:
-                if '&&' in stanza:
-                    break
-                header_lst.append(stanza)
-                continue
+        A segment header block consists of:
 
-            if vtec_regex.search(stanza) is not None:
-                past_vtec = True
-                continue
+            a.    a UGC string
+            b.    VTEC strings as appropriate
+            c.    UGC associated plain language names as appropriate
+            d.    an issuing date/time as appropriate
+        """
+        self.parse_universal_geographic_code()
+        self.parse_vtec_code()
 
-        txt = '\n\n'.join(header_lst)
-        self.txt = re.sub(r'''(\r\r\n|\n\n)''', '\n', txt)
-        self.txt = re.sub(r'''\n\n\n''', '\n\n', self.txt)
+    def parse_universal_geographic_code(self):
+        """
+        Parse the UGC and product expiration time.
+
+        Examples of the UGC line might look like
+
+            PAC007-073-212130-
+            GAZ087-088-099>101-114>119-137>141-SCZ040-042>045-047>052-242200-
+
+        Reference
+        ---------
+        [1] http://www.nws.noaa.gov/directives/sym/pd01017002curr.pdf
+        """
+
+        # The UGC code can cross multiple lines.
+        #
+        # The standard doesn't say so, but there can apparently be a space
+        # just before the end-of-line delimeter.
+        regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)\s?(\n\n)?))+)+
+                               (?P<day>\d{2})
+                               (?P<hour>\d{2})
+                               (?P<minute>\d{2})-
+                            ''', re.VERBOSE)
+
+        m = regex.search(self.txt)
+        if m is None:
+            msg = 'Could not parse the expiration time.\n\n{}'
+            msg = msg.format(self.txt.replace('\n\n', '\n'))
+            raise UGCParsingError(msg)
+
+        dd = int(m.group('day'))
+        hh = int(m.group('hour'))
+        mm = int(m.group('minute'))
+
+        self.expiration_date = adjust_to_base_date(self.base_date, dd, hh, mm)
+        assert self.expiration_date > self.base_date
+
+        self._parse_ugc_geography(m.group())
+
+    def _parse_ugc_geography(self, txt):
+        """
+        Now parse the geographic information.
+
+        The UGC takes the form
+
+            SSFNNN-NNN>NNN-SSFNNN-DDHHMM-
+
+        So capture the 2-char FIPS code, the single char format code,
+        and then an indeterminite number of county/zone codes.  Wash, rinse,
+        repeat.
+
+        Parameters
+        ----------
+        txt : str
+            UGC string
+        """
+        # Must match:
+        #
+        #    1) the two-char FIPS code (state), the single
+        #    2) a single-char county or zone code
+        #    3) a sequence of numbers and separators identifying the
+        #       counties/zones, which might span multiple lines
+        #
+        ugc_regex = re.compile(r'''(?P<fips>\w{2})
+                                   (?P<format>[CZ])
+                                   (?:\d{3}((-|>)(\n\n)?))+
+                                ''', re.VERBOSE)
+
+        # Within the sequence of counties/zones, must match at least one
+        # 3-digit code for a county or zone, but possibly an entire range
+        # of zones.  If the separator is '>', that means a range of zones.
+        cty_regex = re.compile(r'''(\d{3})(-|>\d{3}-)''', re.VERBOSE)
+
+        states = {}
+        for m in ugc_regex.finditer(txt):
+            state = m.groupdict()['fips']
+            format = m.groupdict()['format']
+
+            codes = []
+            for item in cty_regex.findall(m.group()):
+                if item[1] == '-':
+                    # single county or zone
+                    codes.append(int(item[0]))
+                else:
+                    # multiple zones
+                    # The matched string was something like "114>117-"
+                    # which means that zones 114, 115, 116, and 117 were
+                    # intended.  Can never have a range of counties.
+                    for code in range(int(item[0]), int(item[1][1:4]) + 1):
+                        codes.append(code)
+            states[state] = codes
+
+        self.states = states
+        self.ugc_format = 'county' if format == 'C' else 'zone'
+
+    def parse_vtec_code(self):
+        """
+        Parse the VTEC string from the message.
+
+        Look for text that looks something like
+
+        /O.CON.KPBZ.SV.W.0094.000000T0000Z-150621T2130Z
+
+        There can be more than one.
+
+        Parameters
+        ----------
+        txt : str
+            Content of message.
+        """
+        self.vtec = []
+
+        _codes = []
+
+        for m in vtec_regex.finditer(self.txt):
+            the_vtec_code = m.group()
+            _codes.append(the_vtec_code)
+            self.vtec.append(VtecCode(m))
+
+    def parse_mnd_header(self):
+        """
+        parse mass new disseminator header block
+
+        This subsection contains
+
+            a.   a broadcast instruction line
+            b.   a product type line
+            c.   an issuance office line
+            d.   an issuance date/time
+        """
+        self.parse_mnd_issuance_time()
+
+    def parse_mnd_issuance_time(self):
+        """
+        Parse the MND issuance Date/Time line.
+
+        Examples look like
+
+        402 PM CDT WED JUN 11 2008
+        """
+        regex = re.compile(r'''(?P<hh>\d{1,2})(?P<mm>\d{2})\s
+                               (?P<meridiem>A|P)M\s
+                               (?P<timezone>\w{3,4})\s
+                               (?P<day_of_week>SUN|MON|TUE|WED|THU|FRI|SAT)\s
+                               (?P<month>\w{3})\s
+                               (?P<dd>\d{1,2})\s
+                               (?P<year>\d{4})
+                            ''', re.VERBOSE)
+        m = regex.search(self.txt)
+        if m is None:
+            issuance_dt = None
+        else:
+            gd = m.groupdict()
+            year = int(gd['year'])
+            month = _MONTH[gd['month']]
+            day = int(gd['dd'])
+            hour = int(gd['hh'])
+            minute = int(gd['mm'])
+            issuance_dt = dt.datetime(year, month, day, hour, minute, 0)
+
+            if gd['meridiem'] == 'P':
+                issuance_dt += dt.timedelta(hours=12)
+
+            issuance_dt -= dt.timedelta(hours=_TIMEZONES[gd['timezone']])
+
+        self.mnd_issuance_time = issuance_dt
+
+
+def adjust_to_base_date(base_date, day, hour, minute):
+    """
+    Parameters
+    ----------
+    base_date : datetime.datetime
+        Unambiguous date derived from filename
+    day, hour, minute : int
+        Parts of date extracted from a 'ddhhmm' string.  Use the base_date
+        to construct a complete date.
+
+    Returns
+    -------
+    the_date : datetime.datetime
+        Unambiguous date, possibly an issuance time
+    """
+
+    if day < base_date.day:
+        if base_date.month == 12:
+            # Beginning of next year
+            year = base_date.year + 1
+            the_time = dt.datetime(year, 1, day, hour, minute, 0)
+        else:
+            # Beginning of next month
+            year = base_date.year
+            month = base_date.month + 1
+            the_time = dt.datetime(year, month, day, hour, minute, 0)
+    else:
+        the_time = dt.datetime(base_date.year, base_date.month,
+                               day, hour, minute, 0)
+
+    return the_time
 
 
 class Event(HazardsFile):
@@ -836,7 +902,7 @@ class Event(HazardsFile):
             VTEC code object
         """
         if (((self._items[0].vtec[0].product == vtec_code.product) and
-             (self._items[0].vtec[0].office_id == vtec_code.office_id) and
+             (self._items[0].vtec[0].office == vtec_code.office) and
              (self._items[0].vtec[0].phenomena == vtec_code.phenomena) and
              (self._items[0].vtec[0].event_tracking_id == vtec_code.event_tracking_id))):
             return True
@@ -850,7 +916,7 @@ class Event(HazardsFile):
         """
         Is this event still in progress?
         """
-        if not dt.datetime.utcnow() >= self._items[-1].expiration_time:
+        if not dt.datetime.utcnow() >= self._items[-1].expiration_date:
             return True
         else:
             return False

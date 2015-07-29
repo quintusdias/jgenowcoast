@@ -15,7 +15,7 @@ def hzparse():
     description = 'Command line tool for parsing a directory of bulletins.'
     parser = argparse.ArgumentParser(description=description)
 
-    parser.add_argument('--d', dest='directory', type=str)
+    parser.add_argument(dest='directory', type=str)
 
     args = parser.parse_args()
 
@@ -34,4 +34,4 @@ def hzparse():
             print('File:  {}'.format(file))
             print(e.message)
             continue
-        print('File:  {} ({} bulletins)'.format(file, len(hzf)))
+        print('File:  {} ({} products)'.format(file, len(hzf)))
