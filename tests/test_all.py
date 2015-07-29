@@ -66,6 +66,196 @@ class TestHzparser(unittest.TestCase):
 
 class TestSuite(unittest.TestCase):
     """
+    """
+
+    def test_hurricane_segmented(self):
+        """
+        This file consists of a single segmented event.
+        """
+        path = os.path.join('tests', 'data', 'hurr_lcl', '2015050805.hurr')
+        hzf = HazardsFile(path)
+
+        self.assertEqual(len(hzf), 1)
+
+        product = hzf[0]
+        
+        self.assertEqual(product.wmo_dtype, 'WT')
+        self.assertEqual(product.wmo_geog, 'US')
+        self.assertEqual(product.wmo_code, 82)
+        self.assertEqual(product.wmo_office, 'KILM')
+        self.assertEqual(product.wmo_issuance_time,
+                         dt.datetime(2015, 5, 8, 5, 59, 0))
+        self.assertIsNone(product.wmo_retrans)
+        
+        self.assertEqual(product.awips_product, 'TCV')
+        self.assertEqual(product.awips_location_id, 'ILM')
+
+        self.assertEqual(len(product.segments), 10)
+
+
+        # First segment
+        segment = product.segments[0]
+        self.assertEqual(segment.expiration_date,
+                         dt.datetime(2015, 5, 8, 14, 0, 0))
+        self.assertEqual(segment.states, {'NC': [106]})
+        self.assertEqual(segment.ugc_format, 'zone')
+
+        self.assertIsNone(segment.vtec[0].event_beginning_time)
+        self.assertIsNone(segment.vtec[0].event_ending_time)
+        self.assertEqual(segment.vtec[0].product, 'O')
+        self.assertEqual(segment.vtec[0].action, 'CON')
+        self.assertEqual(segment.vtec[0].office, 'KILM')
+        self.assertEqual(segment.vtec[0].phenomena, 'TR')
+        self.assertEqual(segment.vtec[0].significance, 'A')
+        self.assertEqual(segment.vtec[0].event_tracking_id, 1001) 
+
+        self.assertEqual(segment.headline,
+                         'TROPICAL STORM WATCH REMAINS IN EFFECT')
+
+        # Last segment
+        segment = product.segments[-1]
+        self.assertEqual(segment.expiration_date,
+                         dt.datetime(2015, 5, 8, 14, 0, 0))
+        self.assertEqual(segment.states, {'SC': [55]})
+        self.assertEqual(segment.ugc_format, 'zone')
+
+        self.assertIsNone(segment.vtec[0].event_beginning_time)
+        self.assertIsNone(segment.vtec[0].event_ending_time)
+        self.assertEqual(segment.vtec[0].product, 'O')
+        self.assertEqual(segment.vtec[0].action, 'CON')
+        self.assertEqual(segment.vtec[0].office, 'KILM')
+        self.assertEqual(segment.vtec[0].phenomena, 'TR')
+        self.assertEqual(segment.vtec[0].significance, 'A')
+        self.assertEqual(segment.vtec[0].event_tracking_id, 1001) 
+
+        self.assertEqual(segment.headline,
+                         'TROPICAL STORM WATCH REMAINS IN EFFECT')
+
+    def test_torn_warn_non_segmented(self):
+        """
+        Verify non-segmented products (torn_warn)
+        """
+        path = os.path.join('tests', 'data', 'torn_warn', '2015062423.torn')
+        hzf = HazardsFile(path)
+
+        self.assertEqual(len(hzf), 6)
+
+        # No headlines
+        for product in hzf:
+            self.assertIsNone(hzf[0].segments[0].headline)
+
+        # All products have latlon, time/motion/location
+        # All of them have the time/direction/motion
+        for product in hzf:
+            self.assertTrue(len(product.segments[0].polygon) > 0)
+            self.assertIsNotNone(product.segments[0].time_motion_location)
+
+        self.assertEqual(hzf[0].segments[0].time_motion_location.time,
+                         dt.datetime(2015, 6, 24, 23, 0, 0))
+        self.assertEqual(hzf[0].segments[0].time_motion_location.direction,
+                         277)
+        self.assertEqual(hzf[0].segments[0].time_motion_location.speed,
+                         15)
+        self.assertEqual(hzf[0].segments[0].time_motion_location.location,
+                         [(104.92, 39.70)])
+        self.assertEqual(hzf[0].segments[0].polygon,
+                         [(105.02, 39.61), (105, 39.74), (104.61, 39.74),
+                          (104.68, 39.6)])
+        self.assertEqual(hzf[0].segments[0].wkt,
+                         'POLYGON((105.02 39.61, 105.0 39.74, 104.61 39.74, '
+                         '104.68 39.6, 105.02 39.61))')
+
+    def test_fflood_non_segmented(self):
+        """
+        Verify non-segmented products (fflood)
+        """
+        path = os.path.join('tests', 'data', 'fflood', 'warn',
+                            '2015062713.warn')
+        hzf = HazardsFile(path)
+
+        self.assertEqual(len(hzf), 4)
+
+        # First two products have no headlines, last two do 
+        self.assertIsNone(hzf[0].segments[0].headline)
+        self.assertIsNone(hzf[1].segments[0].headline)
+        self.assertEqual(hzf[2].segments[0].headline,
+                         "The National Weather Service in Tulsa has issued a "
+                         "Flood Warning  for the following rivers in Arkansas")
+        self.assertEqual(hzf[3].segments[0].headline,
+                         "The National Weather Service in Tulsa has issued a "
+                         "Flood Warning  for the following rivers in Arkansas")
+
+        # All products have latlon
+        # None of them have the time/direction/motion
+        for product in hzf:
+            self.assertTrue(len(product.segments[0].polygon) > 0)
+            self.assertIsNone(product.segments[0].time_motion_location)
+
+        self.assertEqual(hzf[0].segments[0].txt, fixtures.fflood_txt)
+        self.assertEqual(hzf[0].segments[0].vtec[0].product, 'O')
+        self.assertEqual(hzf[0].segments[0].vtec[0].action, 'NEW')
+        self.assertEqual(hzf[0].segments[0].vtec[0].office, 'KIWX')
+        self.assertEqual(hzf[0].segments[0].vtec[0].phenomena, 'FA')
+        self.assertEqual(hzf[0].segments[0].vtec[0].significance, 'W')
+        self.assertEqual(hzf[0].segments[0].vtec[0].event_tracking_id, 15)
+        self.assertEqual(hzf[0].segments[0].vtec[0].event_beginning_time,
+                         dt.datetime(2015, 6, 27, 13, 7, 0))
+        self.assertEqual(hzf[0].segments[0].vtec[0].event_ending_time,
+                         dt.datetime(2015, 6, 27, 16, 0, 0))
+        self.assertEqual(hzf[0].segments[0].expiration_date,
+                         dt.datetime(2015, 6, 27, 16, 0, 0))
+
+        self.assertEqual(hzf[-1].segments[0].vtec[0].product, 'O')
+        self.assertEqual(hzf[-1].segments[0].vtec[0].action, 'NEW')
+        self.assertEqual(hzf[-1].segments[0].vtec[0].office, 'KTSA')
+        self.assertEqual(hzf[-1].segments[0].vtec[0].phenomena, 'FL')
+        self.assertEqual(hzf[-1].segments[0].vtec[0].significance, 'W')
+        self.assertEqual(hzf[-1].segments[0].vtec[0].event_tracking_id, 65)
+        self.assertEqual(hzf[-1].segments[0].vtec[0].event_beginning_time,
+                         dt.datetime(2015, 6, 27, 18, 0, 0))
+        self.assertEqual(hzf[-1].segments[0].vtec[0].event_ending_time,
+                         dt.datetime(2015, 6, 29, 4, 30, 0))
+        self.assertEqual(hzf[-1].segments[0].expiration_date,
+                         dt.datetime(2015, 6, 27, 21, 43, 0))
+
+    def test_fflood_statment(self):
+        """
+        Should not say there are no products
+        """
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'fflood',
+                            'statment', '2015072313.sttmnt')
+        hzf = HazardsFile(path)
+
+        self.assertEqual(len(hzf), 5)
+
+        # Only the last product has a headline.
+        for product in hzf[0:4]:
+            self.assertIsNone(product.segments[0].headline)
+        self.assertEqual(hzf[-1].segments[0].headline,
+                         "Daily River Forecast For North And Central Alabama")
+
+        self.assertEqual(hzf[0].segments[0].expiration_date,
+                         dt.datetime(2015, 7, 24, 13, 2, 0))
+
+        # No VTEC codes, polygons, wkt
+        # All have text, of course.
+        for product in hzf:
+            self.assertEqual(len(product.segments[0].vtec), 0)
+            self.assertEqual(len(product.segments[0].polygon), 0)
+            self.assertIsNone(product.segments[0].wkt)
+            self.assertIsNotNone(product.segments[0].txt)
+                
+        # The last product has a lot of counties.
+        self.assertEqual(hzf[-1].segments[0].states,
+                         {'AL': [1, 5, 7, 9, 11, 15, 17, 19,21, 27, 29, 37, 43,
+                                 47, 51, 55, 57, 63, 65, 73, 75, 81, 85, 87,
+                                 91, 93, 101, 105, 109, 111, 113, 115, 117,
+                                 119, 121, 123, 125, 127, 133]})
+        self.assertEqual(hzf[-1].segments[0].ugc_format, 'county')
+
+
+class TestSuiteOld(unittest.TestCase):
+    """
     hurr_lcl:  tropical storm / hurricane watch
     noprcp:  heat advisory?
     severe:  severe thunderstorm warning
