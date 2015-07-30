@@ -443,7 +443,7 @@ class Product(object):
                                (?P<geog>\w{2})
                                (?P<code>\d{2})\s
                                (?P<office>\w{4})\s
-                               (?P<dd>\d{2})(?P<hh>\d{2})(?P<mm>\d{2})
+                               (?P<dd>\d{2})(?P<hh>\d{2})(?P<mm>\d{2})\s?
                                (\s(?P<retrans>\w{3}))?\n\n
                                (?P<awips_product>\w{3})
                                (?P<awips_loc_id>\w[A-Z\s]{2})''', re.VERBOSE)
