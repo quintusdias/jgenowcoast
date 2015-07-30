@@ -79,6 +79,17 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_forecaster_identifier(self):
+        """
+        Parse out the forecaster identifier
+        """
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
+                            'wcn', '2015051018.wcn')
+        hzf = HazardsFile(path)
+
+        product = hzf[2]
+        self.assertEqual(product.forecaster_identifier, '46')
+
     def test_2015051018_wcn(self):
         """
         parse without erroring out

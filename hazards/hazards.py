@@ -334,35 +334,17 @@ class HazardsFile(object):
             # Have not seen this case yet in the wild, but maybe...
             file_base_date = None
 
-        # Split the text into separate events.  "$$" normally marks the end
-        # of a product, but only if NOT followed by a UGC string.  Use negative
-        # lookahead to accomplish this.  Just to make life difficult, it's
-        # possible for an empty segment to precede a UGC string.
-        #
-        # The regular expression used below is based on the regular expression
-        # used in the parse_universal_geographic_code method.  Consult that
-        # method for help in deciphering the regular expression and please
-        # consult reference [1]
-        #
-        # It would be nice if we could use regexp.split to get the segment
-        # chunks, but split will not split on an empty pattern match.
-        regex = re.compile(r'''\$\$
-                               (?!(\n\n\n\n\$\$)*
-                                  \n\n\n\n(\w{2}[CZ](\d{3}(-|>))+))''',
-                           re.VERBOSE)
-        start = 0
+        # Split the text into separate events.  Look for the end of product
+        # codes juxtaposed with beginning of product codes.
+        regex = re.compile('\x03\x01')
         self._items = []
-        for match in regex.finditer(txt):
-            stop = match.span()[0]
-            text_item = txt[start:stop]
+        for j, text_item in enumerate(regex.split(txt)):
             try:
                 prod = Product(text_item, base_date=file_base_date)
             except (EmptyProductException, TestMessageException):
                 continue
 
             self._items.append(prod)
-
-            start = stop + 2
 
     def __str__(self):
         return "Filename:  {}".format(self.filename)
@@ -430,12 +412,40 @@ class Product(object):
 
         # Each segment is delimited by "$$"
         lst = re.split('\$\$', self.txt)
-        for text_item in lst:
+        for j, text_item in enumerate(lst):
             try:
                 segment = Segment(text_item, base_date)
                 self.segments.append(segment)
-            except (InvalidSegmentException, TestMessageException):
+            except (EndOfProductException, EmptySegmentException,
+                    InvalidSegmentException, TestMessageException):
                 pass
+
+        self.parse_forecaster_identifier()
+
+    def parse_forecaster_identifier(self):
+        """
+        A forecaster identifier at the end of the product is optional.
+
+        If it is there, it follows the last '$$'.
+        There are a certain number of newlines,
+        then the identier (may have white space inside the identifier),
+        then a certain number of newlines,
+        possibly some more text we don't care about, like maybe a URL,
+        then a certain number of newlines,
+        then the end of the string.
+        """
+        regex = re.compile(r'''\$\$
+                               \n+
+                               (?P<identifier>(\w+(\s\w+)*))?\s?(\.{3})?
+                               (?:\n+[A-Z:/.]*)
+                               \n+$''', re.VERBOSE)
+        m = regex.search(self.txt)
+        if m is None:
+            self.forecaster_identifier = None
+        elif m.groupdict()['identifier'] == '':
+            self.forecaster_identifier = None
+        else:
+            self.forecaster_identifier = m.groupdict()['identifier']
 
     def parse_wmo_abbreviated_heading_awips_id(self):
         regex = re.compile(r'''(?P<dtype_form>\w{2})
@@ -507,7 +517,15 @@ class InvalidProductException(Exception):
     pass
 
 
+class EmptySegmentException(Exception):
+    pass
+
+
 class InvalidSegmentException(Exception):
+    pass
+
+
+class EndOfProductException(Exception):
     pass
 
 
@@ -529,6 +547,22 @@ class Segment(object):
         ugc_format : str
             Either 'county' or 'zone'
         """
+        # Is the segment empty?
+        m = re.search('\n+', txt)
+        if m.span()[0] == 0 and m.span()[1] == len(txt):
+            raise EmptySegmentException()
+
+        # If there is nothing but white space with possibly one alphanumeric
+        # token, then we are into the end-of-product block, which is not a
+        # segment.  If the block also ends a file, then part of the
+        # communications trailer may be in there as well (\x03).
+        regex = re.compile(r'''\n+
+                               (?P<identifier>(\w+(\s\w+)*))?\s?(\.{3})?
+                               (\n+[A-Z:/.]*)
+                               \n*(\x03)?\n*$''', re.VERBOSE)
+        if regex.match(txt):
+            raise EndOfProductException()
+
         if len(txt) < 10:
             raise InvalidSegmentException()
 
