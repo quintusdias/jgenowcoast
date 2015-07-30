@@ -358,7 +358,7 @@ class HazardsFile(object):
             text_item = txt[start:stop]
             try:
                 prod = Product(text_item, base_date=file_base_date)
-            except EmptyProductException:
+            except (EmptyProductException, TestMessageException):
                 continue
 
             self._items.append(prod)
@@ -423,19 +423,19 @@ class Product(object):
         awips_product, awips_location_id : str, str
             As defined in [1]
         """
-        self._txt = txt
+        self.txt = txt
         self.base_date = base_date
 
         self.segments = []
         self.parse_wmo_abbreviated_heading_awips_id()
 
         # Each segment is delimited by "$$"
-        lst = re.split('\$\$', self._txt)
+        lst = re.split('\$\$', self.txt)
         for text_item in lst:
             try:
                 segment = Segment(text_item, base_date)
                 self.segments.append(segment)
-            except InvalidSegmentException:
+            except (InvalidSegmentException, TestMessageException):
                 pass
 
     def parse_wmo_abbreviated_heading_awips_id(self):
@@ -447,13 +447,17 @@ class Product(object):
                                (\s(?P<retrans>\w{3}))?\n\n
                                (?P<awips_product>\w{3})
                                (?P<awips_loc_id>\w[A-Z\s]{2})''', re.VERBOSE)
-        m = regex.search(self._txt)
+        m = regex.search(self.txt)
         if m is None:
             # Is it all just white space?  Empty products have been found in
             # the past.
-            mws = re.search('\n+', self._txt)
-            if mws.span()[0] == 0 and mws.span()[1] == len(self._txt):
+            mws = re.search('\n+', self.txt)
+            if mws.span()[0] == 0 and mws.span()[1] == len(self.txt):
                 raise EmptyProductException()
+            
+            mtest = re.search('THIS IS A TEST MESSAGE.', self.txt)
+            if mtest is not None:
+                raise TestMessageException()
             else:
                 raise InvalidProductException()
 
@@ -490,6 +494,13 @@ class Product(object):
 
 
 class EmptyProductException(Exception):
+    pass
+
+
+class TestMessageException(Exception):
+    """
+    Skip test messages.  See Section 7 of [1].
+    """
     pass
 
 
@@ -713,6 +724,10 @@ class Segment(object):
 
         m = regex.search(self.txt)
         if m is None:
+            mtest = re.search('THIS IS A TEST MESSAGE.', self.txt)
+            if mtest is not None:
+                raise TestMessageException()
+
             msg = 'Could not parse the expiration time.\n\n{}'
             msg = msg.format(self.txt.replace('\n\n', '\n'))
             raise UGCParsingError(msg)
