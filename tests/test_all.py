@@ -79,6 +79,15 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_2015051018_wcn(self):
+        """
+        parse without erroring out
+        """
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
+                            'wcn', '2015051018.part.wcn')
+        hzf = HazardsFile(path)
+        self.assertEqual(len(hzf), 1)
+
     def test_wcn_with_test_message(self):
         """
         parse without erroring out

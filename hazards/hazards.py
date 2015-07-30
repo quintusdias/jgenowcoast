@@ -336,7 +336,8 @@ class HazardsFile(object):
 
         # Split the text into separate events.  "$$" normally marks the end
         # of a product, but only if NOT followed by a UGC string.  Use negative
-        # lookahead to accomplish this.
+        # lookahead to accomplish this.  Just to make life difficult, it's
+        # possible for an empty segment to precede a UGC string.
         #
         # The regular expression used below is based on the regular expression
         # used in the parse_universal_geographic_code method.  Consult that
@@ -345,12 +346,10 @@ class HazardsFile(object):
         #
         # It would be nice if we could use regexp.split to get the segment
         # chunks, but split will not split on an empty pattern match.
-        regex = re.compile(r'''\$\$(?!\n\n\n\n(\w{2}[CZ](\d{3}(-|>))+))''')
-        # regex = re.compile(r'''\$\$
-        #                        (?!\n\n\n\n
-        #                            (\w{2}[CZ](\d{3}(-|>))+\s?(\n\n)?)
-        #                            +\d{6}-)''', re.VERBOSE)
-
+        regex = re.compile(r'''\$\$
+                               (?!(\n\n\n\n\$\$)*
+                                  \n\n\n\n(\w{2}[CZ](\d{3}(-|>))+))''',
+                           re.VERBOSE)
         start = 0
         self._items = []
         for match in regex.finditer(txt):
@@ -454,7 +453,7 @@ class Product(object):
             mws = re.search('\n+', self.txt)
             if mws.span()[0] == 0 and mws.span()[1] == len(self.txt):
                 raise EmptyProductException()
-            
+
             mtest = re.search('THIS IS A TEST MESSAGE.', self.txt)
             if mtest is not None:
                 raise TestMessageException()
