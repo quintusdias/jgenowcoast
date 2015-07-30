@@ -79,6 +79,15 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_state_summ(self):
+        """
+        parse without erroring out
+        """
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
+                            'state_summ', '2015072920.stsum')
+        hzf = HazardsFile(path)
+        self.assertTrue(True)
+
     def test_summary_with_quote(self):
         """
         Should be able to find summaries that contain quote characters.

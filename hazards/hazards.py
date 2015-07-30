@@ -356,11 +356,14 @@ class HazardsFile(object):
         for match in regex.finditer(txt):
             stop = match.span()[0]
             text_item = txt[start:stop]
-            prod = Product(text_item, base_date=file_base_date)
+            try:
+                prod = Product(text_item, base_date=file_base_date)
+            except EmptyProductException:
+                continue
 
             self._items.append(prod)
 
-            start = stop
+            start = stop + 2
 
     def __str__(self):
         return "Filename:  {}".format(self.filename)
@@ -445,6 +448,14 @@ class Product(object):
                                (?P<awips_product>\w{3})
                                (?P<awips_loc_id>\w[A-Z\s]{2})''', re.VERBOSE)
         m = regex.search(self._txt)
+        if m is None:
+            # Is it all just white space?  Empty products have been found in
+            # the past.
+            mws = re.search('\n+', self._txt)
+            if mws.span()[0] == 0 and mws.span()[1] == len(self._txt):
+                raise EmptyProductException()
+            else:
+                raise InvalidProductException()
 
         self.wmo_dtype = m.group('dtype_form')
         self.wmo_geog = m.group('geog')
@@ -476,6 +487,14 @@ class Product(object):
         Implements built-in len(), returns number of segments
         """
         return len(self.segments)
+
+
+class EmptyProductException(Exception):
+    pass
+
+
+class InvalidProductException(Exception):
+    pass
 
 
 class InvalidSegmentException(Exception):
