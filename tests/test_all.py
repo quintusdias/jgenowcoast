@@ -79,6 +79,13 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_parse_tstrm_file_for_awips_identifier(self):
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
+                            'tstrm_warn', '2015072919.tstrm')
+        hzf = HazardsFile(path)
+        self.assertEqual(hzf[10].awips_product, 'PTS')
+        self.assertEqual(hzf[10].awips_location_id, 'DY1')
+
     def test_forecaster_id_followed_by_multiple_paragraphs(self):
         path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
                             'noprcp', '2015072812.noprcp')

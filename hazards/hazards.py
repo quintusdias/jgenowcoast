@@ -460,7 +460,7 @@ class Product(object):
                                (?P<dd>\d{2})(?P<hh>\d{2})(?P<mm>\d{2})\s?
                                (\s(?P<retrans>\w{3}))?\n\n
                                (?P<awips_product>\w{3})
-                               (?P<awips_loc_id>\w[A-Z\s]{2})''', re.VERBOSE)
+                               (?P<awips_loc_id>\w[\w\s]{2})''', re.VERBOSE)
         m = regex.search(self.txt)
         if m is None:
             # Is it all just white space?  Empty products have been found in
