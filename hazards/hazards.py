@@ -174,6 +174,8 @@ UGC_regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)\s?(\n\n)?))+)+
 
 # Regular expression for parsing the WMO abbreviated heading and AWIPS
 # identifier.  See NWSI 10-1701.
+# The location ID will sometimes have line feeds instead of trailing spaces,
+# which violates the spec.
 WMO_AWIPS_regex = re.compile(r'''(?P<dtype_form>\w{2})
                                  (?P<geog>\w{2})
                                  (?P<code>\d{2})\s
@@ -181,7 +183,7 @@ WMO_AWIPS_regex = re.compile(r'''(?P<dtype_form>\w{2})
                                  (?P<dd>\d{2})(?P<hh>\d{2})(?P<mm>\d{2})\s?
                                  (\s(?P<retrans>\w{3}))?\n+
                                  (?P<awips_product>\w{3})
-                                 (?P<awips_loc_id>\w[\w ][\w ])''', re.VERBOSE)
+                                 (?P<awips_loc_id>\w[\w\s]{2})''', re.VERBOSE)
 
 TimeMotionLocation = collections.namedtuple('TimeMotionLocation',
                                             ['time', 'direction',
@@ -474,17 +476,7 @@ class Product(object):
     def parse_wmo_abbreviated_heading_awips_id(self):
         m = WMO_AWIPS_regex.search(self.txt)
         if m is None:
-            # Is it all just white space?  Empty products have been found in
-            # the past.
-            mws = re.search('\n+', self.txt)
-            if mws.span()[0] == 0 and mws.span()[1] == len(self.txt):
-                raise EmptyProductException()
-
-            mtest = re.search('THIS IS A TEST MESSAGE.', self.txt)
-            if mtest is not None:
-                raise TestMessageException()
-            else:
-                raise InvalidProductException()
+            import ipdb; ipdb.set_trace()
 
         self.wmo_dtype = m.group('dtype_form')
         self.wmo_geog = m.group('geog')

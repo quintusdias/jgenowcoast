@@ -79,6 +79,11 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_awips_nwsli_with_newline_instead_of_space(self):
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
+                            'state_summ', '2015072919.stsum')
+        HazardsFile(path)
+
     def test_2015072916_sttmnt(self):
         path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'fflood',
                             'statment', '2015072916.sttmnt')
