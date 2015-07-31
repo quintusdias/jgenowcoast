@@ -79,6 +79,16 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_parse_fflood_2015073115_sttmnt(self):
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'fflood',
+                            'statment', '2015073115.sttmnt')
+        HazardsFile(path)
+
+    def test_parse_2015073100_stsum(self):
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
+                            'state_summ', '2015073100.stsum')
+        HazardsFile(path)
+
     def test_parse_tstrm_file_for_awips_identifier(self):
         path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
                             'tstrm_warn', '2015072919.tstrm')

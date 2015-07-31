@@ -165,6 +165,12 @@ vtec_pattern = r'''\/
                  '''
 vtec_regex = re.compile(vtec_pattern, re.VERBOSE)
 
+# Regular expression for parsing a UGC string.  See NWSI 10-1702 for details.
+UGC_regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)\s?(\n\n)?))+)+
+                           (?P<day>\d{2})
+                           (?P<hour>\d{2})
+                           (?P<minute>\d{2})-
+                        ''', re.VERBOSE)
 
 TimeMotionLocation = collections.namedtuple('TimeMotionLocation',
                                             ['time', 'direction',
@@ -275,7 +281,9 @@ def fetch_events(dirname, numlast=None, current=None):
         fnames = [os.path.join(dirname, item) for item in lst]
     else:
         fnames = [os.path.join(dirname, item) for item in lst[numlast:]]
-    hzlst = [HazardsFile(fname) for fname in fnames]
+    hzlst = []
+    for fname in fnames:
+        hzlst.append(HazardsFile(fname))
 
     events = []
     for hazard_file in hzlst:
@@ -535,6 +543,23 @@ class EndOfProductException(Exception):
 
 
 class Segment(object):
+    """
+    Attributes
+    ----------
+    txt : str
+        the raw text found within the segment
+    base_date : datetime.datetime
+        date attached to the file from whence this bulletin came
+    expiration_date
+    headline : str
+    mnd_issuance_time : datetime.datetime
+    polygon
+    states
+    time_motion_location : collections.namedtuple
+    ugc_format
+    wkt
+    vtec
+    """
 
     def __init__(self, txt, base_date=None):
         """
@@ -552,36 +577,49 @@ class Segment(object):
         ugc_format : str
             Either 'county' or 'zone'
         """
-        # Is the segment empty?
-        m = re.search('\n+', txt)
-        if m.span()[0] == 0 and m.span()[1] == len(txt):
-            raise EmptySegmentException()
-
-        # If there is nothing but white space with possibly one alphanumeric
-        # token, then we are into the end-of-product block, which is not a
-        # segment.  If the block also ends a file, then part of the
-        # communications trailer may be in there as well (\x03).
-        # regex = re.compile(r'''\n+
-        #                        ((?P<opt_url>HTTP://[A-Z/.]+)(\n\n){2})?
-        #                        (?P<fid>([-\w/]+(\s[-/\w]+)*))?\s?(\.{3})?\n*
-        #                        (?P<extra>[\w\040:/.()]*\n\n[\w\040:/.()]*\n*)
-        #                        (\x03)?\n*$''', re.VERBOSE)
-        # if regex.match(txt):
-        #     raise EndOfProductException()
-
-        # if len(txt) < 10:
-        #     raise InvalidSegmentException()
-
         self.txt = txt
         self.base_date = base_date
+        self.expiration_date = None
+        self.headline = None
+        self.mnd_issuance_time = None
+        self.polygon = []
+        self.states = None
+        self.time_motion_location = None
+        self.ugc_format = None
+        self.wkt = None
+        self.vtec = []
 
-        self.parse_mnd_header()
-        self.parse_segment_header()
-        self.parse_content_block()
-        self.parse_communications_trailer()
+        # Characterize the segment.
+        m = re.search('\n+', txt)
+        if m.span()[0] == 0 and m.span()[1] == len(txt):
+            # The segment is empty.
+            raise EmptySegmentException()
+        elif re.search('THIS IS A TEST MESSAGE.', txt) is not None:
+            # The segment is a test message.  Nothing more to do.
+            return
+        elif UGC_regex.search(txt) is not None:
 
-        # Clean up the text a bit.
-        self.txt = self.txt.replace('\n\n', '\n').strip('\x01')
+            # Hopefully this is normally the case.
+            self.parse_mnd_header()
+            self.parse_segment_header()
+            self.parse_content_block()
+            self.parse_communications_trailer()
+
+            # Clean up the text a bit.
+            self.txt = self.txt.replace('\n\n', '\n').strip('\x01')
+
+        elif re.search('&&', txt) is not None:
+            # Ignore these for now, not sure what to do with them.
+            return
+        elif re.search('RVS\w\w\w\n\nHydrologic Statement', txt):
+            # The spec doesn't quite say that a UGC string is required here.
+            # See 10-922
+            return
+        else:
+            # This should not happen.
+            raise InvalidSegmentException()
+
+        # Assume that the segment has a UGC string, VTEC, etc.
 
     def parse_content_block(self):
         """
@@ -720,9 +758,6 @@ class Segment(object):
             # Replace any sequence of newlines with just a space.
             self.headline = re.sub('\n\n', ' ', raw_header)
 
-        else:
-            self.headline = None
-
     def parse_segment_header(self):
         """
         Parse the segment header
@@ -751,25 +786,7 @@ class Segment(object):
         [1] http://www.nws.noaa.gov/directives/sym/pd01017002curr.pdf
         """
 
-        # The UGC code can cross multiple lines.
-        #
-        # The standard doesn't say so, but there can apparently be a space
-        # just before the end-of-line delimeter.
-        regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)\s?(\n\n)?))+)+
-                               (?P<day>\d{2})
-                               (?P<hour>\d{2})
-                               (?P<minute>\d{2})-
-                            ''', re.VERBOSE)
-
-        m = regex.search(self.txt)
-        if m is None:
-            mtest = re.search('THIS IS A TEST MESSAGE.', self.txt)
-            if mtest is not None:
-                raise TestMessageException()
-
-            msg = 'Could not parse the expiration time.\n\n{}'
-            msg = msg.format(self.txt.replace('\n\n', '\n'))
-            raise UGCParsingError(msg)
+        m = UGC_regex.search(self.txt)
 
         dd = int(m.group('day'))
         hh = int(m.group('hour'))
