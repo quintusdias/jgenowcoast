@@ -477,6 +477,7 @@ class Product(object):
     def parse_wmo_abbreviated_heading_awips_id(self):
         m = WMO_AWIPS_regex.search(self.txt)
         if m is None:
+            import ipdb; ipdb.set_trace()
             raise InvalidProductException()
 
         self.wmo_dtype = m.group('dtype_form')

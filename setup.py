@@ -13,6 +13,6 @@ kwargs = {'name': 'hazards',
           },
           'install_requires': install_requires,
           'packages': ['hazards'],
-          'version': '0.0.1',}
+          'version': '0.0.2',}
 
 setup(**kwargs)

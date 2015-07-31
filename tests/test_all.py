@@ -80,6 +80,11 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_marine_high_seas(self):
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'marine',
+                            'high_sea', '2015073009.high')
+        HazardsFile(path)
+
     def test_firefcst_with_invalid_awips_location_id(self):
         # Also has invalid space after AWIPS retransmission thingy.
         path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'firewx',
