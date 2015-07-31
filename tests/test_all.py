@@ -79,6 +79,14 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_communicaitons_trailer_with_no_id_but_more_info(self):
+        """
+        Parse forecaster identifier with no ID, but extra info
+        """
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
+                            'special', '2015072717.special')
+        HazardsFile(path)
+
     def test_special_forecaster_identifier_with_slash(self):
         """
         Parse forecaster identifier with slash
