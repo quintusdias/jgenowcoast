@@ -16,6 +16,7 @@ if sys.hexversion < 0x03000000:
     from StringIO import StringIO
 else:
     from io import BytesIO
+import warnings
 
 import numpy as np
 
@@ -181,9 +182,9 @@ WMO_AWIPS_regex = re.compile(r'''(?P<dtype_form>\w{2})
                                  (?P<code>\d{2})\s
                                  (?P<office>\w{4})\s
                                  (?P<dd>\d{2})(?P<hh>\d{2})(?P<mm>\d{2})\s?
-                                 (\s(?P<retrans>\w{3}))?\n+
+                                 (\s(?P<retrans>\w{3}))?\s?\n+
                                  (?P<awips_product>\w{3})
-                                 (?P<awips_loc_id>\w[\w\s]{2})''', re.VERBOSE)
+                                 (?P<awips_loc_id>[\w\s]{3})''', re.VERBOSE)
 
 TimeMotionLocation = collections.namedtuple('TimeMotionLocation',
                                             ['time', 'direction',
@@ -476,7 +477,7 @@ class Product(object):
     def parse_wmo_abbreviated_heading_awips_id(self):
         m = WMO_AWIPS_regex.search(self.txt)
         if m is None:
-            import ipdb; ipdb.set_trace()
+            raise InvalidProductException()
 
         self.wmo_dtype = m.group('dtype_form')
         self.wmo_geog = m.group('geog')
@@ -493,6 +494,9 @@ class Product(object):
         self.wmo_retrans = m.group('retrans')
         self.awips_product = m.group('awips_product')
         self.awips_location_id = m.group('awips_loc_id')
+        if '\n' in self.awips_location_id:
+            msg = '"{}" is technically an invalid AWIPS location ID'
+            warnings.warn(msg.format(self.awips_location_id))
 
     def __str__(self):
         return "Product:  {} segments".format(len(self))

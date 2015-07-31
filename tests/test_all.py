@@ -3,6 +3,7 @@ from datetime import datetime
 import os
 import sys
 import unittest
+import warnings
 
 if sys.hexversion < 0x03000000:
     import mock
@@ -79,6 +80,12 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_firefcst_with_invalid_awips_location_id(self):
+        # Also has invalid space after AWIPS retransmission thingy.
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'firewx',
+                            'firefcst', '2015072912.firefcst')
+        HazardsFile(path)
+
     def test_firefcst(self):
         path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'firewx',
                             'firefcst', '2015072919.firefcst')
@@ -92,7 +99,10 @@ class TestSuite(unittest.TestCase):
     def test_awips_nwsli_with_newline_instead_of_space(self):
         path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
                             'state_summ', '2015072919.stsum')
-        HazardsFile(path)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            hzf = HazardsFile(path)
+        self.assertEqual(hzf[8].awips_location_id, 'WI\n')
 
     def test_2015072916_sttmnt(self):
         path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'fflood',
