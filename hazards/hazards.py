@@ -793,7 +793,6 @@ class Segment(object):
         mm = int(m.group('minute'))
 
         self.expiration_date = adjust_to_base_date(self.base_date, dd, hh, mm)
-        assert self.expiration_date > self.base_date
 
         self._parse_ugc_geography(m.group())
 
