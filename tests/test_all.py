@@ -79,6 +79,11 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_2015072916_sttmnt(self):
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'fflood',
+                            'statment', '2015072916.sttmnt')
+        HazardsFile(path)
+
     def test_expiration_date_exceeding_file_time(self):
         """
         this is actually ok

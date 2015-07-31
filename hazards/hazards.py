@@ -172,6 +172,17 @@ UGC_regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)\s?(\n\n)?))+)+
                            (?P<minute>\d{2})-
                         ''', re.VERBOSE)
 
+# Regular expression for parsing the WMO abbreviated heading and AWIPS
+# identifier.  See NWSI 10-1701.
+WMO_AWIPS_regex = re.compile(r'''(?P<dtype_form>\w{2})
+                                 (?P<geog>\w{2})
+                                 (?P<code>\d{2})\s
+                                 (?P<office>\w{4})\s
+                                 (?P<dd>\d{2})(?P<hh>\d{2})(?P<mm>\d{2})\s?
+                                 (\s(?P<retrans>\w{3}))?\n+
+                                 (?P<awips_product>\w{3})
+                                 (?P<awips_loc_id>\w[\w ][\w ])''', re.VERBOSE)
+
 TimeMotionLocation = collections.namedtuple('TimeMotionLocation',
                                             ['time', 'direction',
                                              'speed', 'location'])
@@ -461,15 +472,7 @@ class Product(object):
             self.forecaster_identifier = m.groupdict()['fid']
 
     def parse_wmo_abbreviated_heading_awips_id(self):
-        regex = re.compile(r'''(?P<dtype_form>\w{2})
-                               (?P<geog>\w{2})
-                               (?P<code>\d{2})\s
-                               (?P<office>\w{4})\s
-                               (?P<dd>\d{2})(?P<hh>\d{2})(?P<mm>\d{2})\s?
-                               (\s(?P<retrans>\w{3}))?\n\n
-                               (?P<awips_product>\w{3})
-                               (?P<awips_loc_id>\w[\w\s]{2})''', re.VERBOSE)
-        m = regex.search(self.txt)
+        m = WMO_AWIPS_regex.search(self.txt)
         if m is None:
             # Is it all just white space?  Empty products have been found in
             # the past.
@@ -607,17 +610,22 @@ class Segment(object):
 
             # Clean up the text a bit.
             self.txt = self.txt.replace('\n\n', '\n').strip('\x01')
+            return
 
         elif re.search('&&', txt) is not None:
             # Ignore these for now, not sure what to do with them.
+            # They are certainly legal.  Not sure what to parse, though.
             return
-        elif re.search('RVS\w\w\w\n\nHydrologic Statement', txt):
-            # The spec doesn't quite say that a UGC string is required here.
-            # See 10-922
-            return
-        else:
-            # This should not happen.
-            raise InvalidSegmentException()
+
+        elif WMO_AWIPS_regex.search(txt) is not None:
+            m = WMO_AWIPS_regex.search(txt)
+            if m.group('awips_product') == 'RVS':
+                # Hydrologic statement.  The spec doesn't quite say that a UGC
+                # string is required here.  See 10-922
+                return
+
+        # This should not happen.
+        raise InvalidSegmentException()
 
         # Assume that the segment has a UGC string, VTEC, etc.
 
