@@ -610,13 +610,12 @@ class Segment(object):
             return
 
         elif WMO_AWIPS_regex.search(txt) is not None:
-            m = WMO_AWIPS_regex.search(txt)
-            if m.group('awips_product') == 'RVS':
-                # Hydrologic statement.  The spec doesn't quite say that a UGC
-                # string is required here.  See 10-922
-                return
+            # Some segments just don't have a UGC.  Let them slide.
+            # One such AWIPS product is 'RVS'.  See 10-922.
+            return
 
         # This should not happen.
+        import ipdb; ipdb.set_trace()
         raise InvalidSegmentException()
 
         # Assume that the segment has a UGC string, VTEC, etc.
