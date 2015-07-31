@@ -436,7 +436,7 @@ class Product(object):
         lst = re.split('\$\$', self.txt)
         for j, text_item in enumerate(lst[:-1]):
             try:
-                segment = Segment(text_item, base_date)
+                segment = Segment(text_item, base_date, first_segment=(j == 0))
                 self.segments.append(segment)
             except (EmptySegmentException, TestMessageException):
                 pass
@@ -546,17 +546,21 @@ class Segment(object):
     base_date : datetime.datetime
         date attached to the file from whence this bulletin came
     expiration_date
+        See [1]
     headline : str
     mnd_issuance_time : datetime.datetime
     polygon
-    states
+    states : dict
+        Maps states to the 3-digit FIPS codes for associated counties /
+        parishes / zones.
     time_motion_location : collections.namedtuple
-    ugc_format
+    ugc_format : str
+        Either 'county' or 'zone'
     wkt
     vtec
     """
 
-    def __init__(self, txt, base_date=None):
+    def __init__(self, txt, base_date=None, first_segment=False):
         """
         Parameters
         ----------
@@ -564,13 +568,8 @@ class Segment(object):
             Text constituting the entire bulletin
         base_date : datetime.datetime
             Date attached to the file from whence this bulletin came.
-        expiration_date : datetime.datetime
-            See [1]
-        states : dict
-            Maps states to the 3-digit FIPS codes for associated counties /
-            parishes / zones.
-        ugc_format : str
-            Either 'county' or 'zone'
+        first_segment : bool
+            First segment?  Must have awips identifier.
         """
         self.txt = txt
         self.base_date = base_date
@@ -609,13 +608,16 @@ class Segment(object):
             # They are certainly legal.  Not sure what to parse, though.
             return
 
+        elif not first_segment:
+            # Possibly just generic text.
+            return
+
         elif WMO_AWIPS_regex.search(txt) is not None:
             # Some segments just don't have a UGC.  Let them slide.
             # One such AWIPS product is 'RVS'.  See 10-922.
             return
 
         # This should not happen.
-        import ipdb; ipdb.set_trace()
         raise InvalidSegmentException()
 
         # Assume that the segment has a UGC string, VTEC, etc.
