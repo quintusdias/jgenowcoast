@@ -79,6 +79,14 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_special_forecaster_identifier_with_slash(self):
+        """
+        Parse forecaster identifier with slash
+        """
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
+                            'special', '2015072700.special')
+        HazardsFile(path)
+
     def test_forecaster_identifier(self):
         """
         Parse out the forecaster identifier
