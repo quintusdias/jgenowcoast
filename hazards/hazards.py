@@ -434,11 +434,19 @@ class Product(object):
         then a certain number of newlines,
         then the end of the string.
         """
+        # regex = re.compile(r'''\$\$
+        #                        \n+
+        #                        ((?P<opt_url>[\w:/.])\n+)
+        #                        (?P<fid>([-/\w]+(\040[-/\w]+)*))?\s?(\.{3})?
+        #                        \s+
+        #                        (?P<extra>[\w\040:/.()]*\n\n[\w\040:/.()]*)?
+        #                        \n+$''', re.VERBOSE)
         regex = re.compile(r'''\$\$
                                \n+
-                               (?P<fid>([-/\w]+(\040[-/\w]+)*))?\s?(\.{3})?
-                               (?P<extra>\n+[\w\040:/.()]*\n\n[\w\040:/.()]*)?
-                               \n+$''', re.VERBOSE)
+                               ((?P<opt_url>HTTP://[A-Z/.]+)(\n\n){2})?
+                               (?P<fid>([-\w/]+(\s[-/\w]+)*))?\s?(\.{3})?\n+
+                               (?P<extra>[\w\040:/.()]*\n\n[\w\040:/.()]*)?
+                               \n*(\x03)?\n*$''', re.VERBOSE)
         m = regex.search(self.txt)
         if m is None:
             self.forecaster_identifier = None
@@ -557,8 +565,9 @@ class Segment(object):
         # segment.  If the block also ends a file, then part of the
         # communications trailer may be in there as well (\x03).
         regex = re.compile(r'''\n+
-                               (?P<fid>([-\w/]+(\s[-/\w]+)*))?\s?(\.{3})?
-                               (?P<extra>\n+[\w\040:/.()]*\n\n[\w\040:/.()]*)?
+                               ((?P<opt_url>HTTP://[A-Z/.]+)(\n\n){2})?
+                               (?P<fid>([-\w/]+(\s[-/\w]+)*))?\s?(\.{3})?\n*
+                               (?P<extra>[\w\040:/.()]*\n\n[\w\040:/.()]*)?
                                \n*(\x03)?\n*$''', re.VERBOSE)
         if regex.match(txt):
             raise EndOfProductException()

@@ -79,6 +79,15 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_url_preceding_forecaster_id(self):
+        """
+        Parse forecaster identifier preceded by URL
+        """
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'watch_warn',
+                            'special', '2015072803.special')
+        hzf = HazardsFile(path)
+        self.assertEqual(hzf[9].forecaster_identifier, 'CJS')
+
     def test_forecaster_id_with_dash(self):
         """
         Parse forecaster identifier with a dash
