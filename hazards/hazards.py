@@ -410,17 +410,17 @@ class Product(object):
         self.segments = []
         self.parse_wmo_abbreviated_heading_awips_id()
 
-        # Each segment is delimited by "$$"
+        # Each segment is delimited by "$$".  The last one is the product
+        # trailer, which we will not parse.
         lst = re.split('\$\$', self.txt)
-        for j, text_item in enumerate(lst):
+        for j, text_item in enumerate(lst[:-1]):
             try:
                 segment = Segment(text_item, base_date)
                 self.segments.append(segment)
-            except (EndOfProductException, EmptySegmentException,
-                    InvalidSegmentException, TestMessageException):
+            except (EmptySegmentException, TestMessageException):
                 pass
 
-        self.parse_forecaster_identifier()
+        # self.parse_forecaster_identifier()
 
     def parse_forecaster_identifier(self):
         """
@@ -431,22 +431,19 @@ class Product(object):
         then the identier (may have white space inside the identifier),
         then a certain number of newlines,
         possibly some more text we don't care about, like maybe a URL,
+        sometimes multiple numbers of these paragraphs,
         then a certain number of newlines,
         then the end of the string.
+
+        Not doing this at the moment, the communications trailer is too
+        free-form.
         """
-        # regex = re.compile(r'''\$\$
-        #                        \n+
-        #                        ((?P<opt_url>[\w:/.])\n+)
-        #                        (?P<fid>([-/\w]+(\040[-/\w]+)*))?\s?(\.{3})?
-        #                        \s+
-        #                        (?P<extra>[\w\040:/.()]*\n\n[\w\040:/.()]*)?
-        #                        \n+$''', re.VERBOSE)
         regex = re.compile(r'''\$\$
                                \n+
                                ((?P<opt_url>HTTP://[A-Z/.]+)(\n\n){2})?
                                (?P<fid>([-\w/]+(\s[-/\w]+)*))?\s?(\.{3})?\n+
-                               (?P<extra>[\w\040:/.()]*\n\n[\w\040:/.()]*)?
-                               \n*(\x03)?\n*$''', re.VERBOSE)
+                               (?P<extra>[\w\040:/.()]*\n\n[\w\040:/.()]*\n*)
+                               (\x03)?\n*$''', re.VERBOSE)
         m = regex.search(self.txt)
         if m is None:
             self.forecaster_identifier = None
@@ -564,16 +561,16 @@ class Segment(object):
         # token, then we are into the end-of-product block, which is not a
         # segment.  If the block also ends a file, then part of the
         # communications trailer may be in there as well (\x03).
-        regex = re.compile(r'''\n+
-                               ((?P<opt_url>HTTP://[A-Z/.]+)(\n\n){2})?
-                               (?P<fid>([-\w/]+(\s[-/\w]+)*))?\s?(\.{3})?\n*
-                               (?P<extra>[\w\040:/.()]*\n\n[\w\040:/.()]*)?
-                               \n*(\x03)?\n*$''', re.VERBOSE)
-        if regex.match(txt):
-            raise EndOfProductException()
+        # regex = re.compile(r'''\n+
+        #                        ((?P<opt_url>HTTP://[A-Z/.]+)(\n\n){2})?
+        #                        (?P<fid>([-\w/]+(\s[-/\w]+)*))?\s?(\.{3})?\n*
+        #                        (?P<extra>[\w\040:/.()]*\n\n[\w\040:/.()]*\n*)
+        #                        (\x03)?\n*$''', re.VERBOSE)
+        # if regex.match(txt):
+        #     raise EndOfProductException()
 
-        if len(txt) < 10:
-            raise InvalidSegmentException()
+        # if len(txt) < 10:
+        #     raise InvalidSegmentException()
 
         self.txt = txt
         self.base_date = base_date
