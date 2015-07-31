@@ -436,7 +436,7 @@ class Product(object):
         """
         regex = re.compile(r'''\$\$
                                \n+
-                               (?P<fid>([/\w]+(\040[/\w]+)*))?\s?(\.{3})?
+                               (?P<fid>([-/\w]+(\040[-/\w]+)*))?\s?(\.{3})?
                                (?P<extra>\n+[\w\040:/.()]*\n\n[\w\040:/.()]*)?
                                \n+$''', re.VERBOSE)
         m = regex.search(self.txt)
@@ -557,7 +557,7 @@ class Segment(object):
         # segment.  If the block also ends a file, then part of the
         # communications trailer may be in there as well (\x03).
         regex = re.compile(r'''\n+
-                               (?P<identifier>([\w/]+(\s[/\w]+)*))?\s?(\.{3})?
+                               (?P<fid>([-\w/]+(\s[-/\w]+)*))?\s?(\.{3})?
                                (?P<extra>\n+[\w\040:/.()]*\n\n[\w\040:/.()]*)?
                                \n*(\x03)?\n*$''', re.VERBOSE)
         if regex.match(txt):
