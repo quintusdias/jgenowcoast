@@ -80,6 +80,22 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def test_print_vtec(self):
+        path = os.path.join('tests', 'data', 'torn_warn')
+        evts = fetch_events(path)
+        evt = evts[-1]
+        with patch('sys.stdout', new=StringIO()) as fake_stdout:
+            print(evt.vtec_code)
+            actual = fake_stdout.getvalue().strip()
+        self.assertEqual(actual, fixtures.vtec_print)
+
+    @unittest.skip('volcano/volcano:  no spec')
+    def test_volcano_volcano(self):
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'volcano',
+                            'volcano', '2015080210.volc')
+        HazardsFile(path)
+
+    @unittest.skip('volcano/volcano:  no spec')
     def test_marine_high_seas(self):
         path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'marine',
                             'high_sea', '2015073009.high')
@@ -460,6 +476,14 @@ class TestSuite(unittest.TestCase):
 
         self.assertEqual(segment.headline,
                          'TROPICAL STORM WATCH REMAINS IN EFFECT')
+
+    def test_write_shapefiles(self):
+        """
+        Verify shapefile creation
+        """
+        path = os.path.join('tests', 'data', 'torn_warn')
+        evts = fetch_events(path)
+        self.fail('fail')
 
     def test_torn_warn_non_segmented(self):
         """

@@ -263,6 +263,17 @@ class VtecCode(object):
         self.significance = gd['significance']
         self.event_tracking_id = int(gd['event_tracking_id'])
 
+    def __str__(self):
+        txt = "Event Beginning Time: {}".format(self.event_beginning_time)
+        txt += "\nEvent Ending Time: {}".format(self.event_ending_time)
+        txt += "\nProduct: {}".format(_VTEC_PRODUCT_CLASS[self.product])
+        txt += "\nAction: {}".format(_VTEC_ACTION_CODE[self.action])
+        txt += "\nOffice: {}".format(self.office)
+        txt += "\nPhenomena: {}".format(_VTEC_PHENOMENA[self.phenomena])
+        txt += "\nSignificance: {}".format(_VTEC_SIGNIFICANCE[self.significance])
+        txt += "\nTracking ID: {}".format(self.event_tracking_id)
+        return txt
+
 
 class NoVtecCodeException(Exception):
     def __init__(self, message):
@@ -477,7 +488,6 @@ class Product(object):
     def parse_wmo_abbreviated_heading_awips_id(self):
         m = WMO_AWIPS_regex.search(self.txt)
         if m is None:
-            import ipdb; ipdb.set_trace()
             raise InvalidProductException()
 
         self.wmo_dtype = m.group('dtype_form')

@@ -11,6 +11,15 @@ la_url = ('ftp://tgftp.nws.noaa.gov/data/watches_warnings/thunderstorm/la/'
 relpath = os.path.join('data', 'severe', '2015062121.severe')
 severe_thunderstorm_file = pkg.resource_filename(__name__, relpath)
 
+vtec_print = r"""Event Beginning Time: 2015-06-29 01:26:00
+Event Ending Time: 2015-06-29 02:00:00
+Product: Operational product
+Action: New event
+Office: KLSX
+Phenomena: Tornado
+Significance: Warning
+Tracking ID: 36"""
+
 severe_print = r"""Headline: A SEVERE THUNDERSTORM WARNING REMAINS IN EFFECT UNTIL 530 PM EDT FOR NORTHEASTERN BEAVER AND SOUTH CENTRAL LAWRENCE COUNTIES
 Product: Operational product
 Action: Event continued
