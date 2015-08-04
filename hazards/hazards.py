@@ -18,6 +18,8 @@ else:
     from io import BytesIO
 import warnings
 
+from osgeo import ogr
+from osgeo import osr
 import numpy as np
 
 
@@ -186,9 +188,21 @@ WMO_AWIPS_regex = re.compile(r'''(?P<dtype_form>\w{2})
                                  (?P<awips_product>\w{3})
                                  (?P<awips_loc_id>[\w\s]{3})''', re.VERBOSE)
 
-TimeMotionLocation = collections.namedtuple('TimeMotionLocation',
-                                            ['time', 'direction',
-                                             'speed', 'location'])
+class TimeMotionLocation(object):
+    def __init__(self, time=None, direction=None, speed=None, location=None):
+        """
+        """
+        self.time = time
+        self.direction = direction
+        self.speed = speed
+        self.location = location
+
+    def __str__(self):
+        txt = 'Time:  {}'.format(self.time)
+        txt += '\nDirection:  {} degrees'.format(self.direction)
+        txt += '\nSpeed:  {} kts'.format(self.speed)
+        txt += '\nLocation:  {}'.format(self.location)
+        return txt
 
 
 class VtecCode(object):
@@ -263,6 +277,17 @@ class VtecCode(object):
         self.significance = gd['significance']
         self.event_tracking_id = int(gd['event_tracking_id'])
 
+    def __str__(self):
+        txt = "Event Beginning Time: {}".format(self.event_beginning_time)
+        txt += "\nEvent Ending Time: {}".format(self.event_ending_time)
+        txt += "\nProduct: {}".format(_VTEC_PRODUCT_CLASS[self.product])
+        txt += "\nAction: {}".format(_VTEC_ACTION_CODE[self.action])
+        txt += "\nOffice: {}".format(self.office)
+        txt += "\nPhenomena: {}".format(_VTEC_PHENOMENA[self.phenomena])
+        txt += "\nSignificance: {}".format(_VTEC_SIGNIFICANCE[self.significance])
+        txt += "\nTracking ID: {}".format(self.event_tracking_id)
+        return txt
+
 
 class NoVtecCodeException(Exception):
     def __init__(self, message):
@@ -291,6 +316,11 @@ def fetch_events(dirname, numlast=None, current=None):
     # exclude if it starts with a "."
     lst = [item for item in lst if not item.startswith('.')]
 
+    # The files are named with dates, so sort them.  If this were
+    # not the case, we would have to implement a lot of logic aimed
+    # at keeping the messages in order.
+    lst = sorted(lst)
+
     if numlast is None:
         fnames = [os.path.join(dirname, item) for item in lst]
     else:
@@ -304,16 +334,19 @@ def fetch_events(dirname, numlast=None, current=None):
         for product in hazard_file:
             for segment in product.segments:
                 for j, vtec_code in enumerate(segment.vtec):
-                    evts = [x for x in events if x.contains(vtec_code)]
-                    if len(evts) == 0:
+                    already_seen_this_vtec = False
+                    for event in events:
+                        if event.contains(vtec_code):
+                            if event.precedes(vtec_code):
+                                # Must weed out duplicates.
+                                event.append(segment)
+                            already_seen_this_vtec = True
+                            break
+
+                    if not already_seen_this_vtec:
                         # Must create a new event.
-                        events.append(Event(vtec_code, segment))
-                    else:
-                        # The event already exists.  Just add this bulletin to
-                        # the sequence of events.
-                        assert len(evts) == 1
-                        evt = evts[0]
-                        evt.append(segment)
+                        evt = Event(segment, vtec_code)
+                        events.append(evt)
 
     if current is not None and current:
         events = [event for event in events if event.not_expired()]
@@ -477,7 +510,6 @@ class Product(object):
     def parse_wmo_abbreviated_heading_awips_id(self):
         m = WMO_AWIPS_regex.search(self.txt)
         if m is None:
-            import ipdb; ipdb.set_trace()
             raise InvalidProductException()
 
         self.wmo_dtype = m.group('dtype_form')
@@ -553,16 +585,22 @@ class Segment(object):
     expiration_date
         See [1]
     headline : str
+        Summarizes narrative/data part of product content block.  See [1]
     mnd_issuance_time : datetime.datetime
-    polygon
+        Mass news disseminator issuance time
+    polygon : list
+        Lat/lon pairs defining an area
     states : dict
         Maps states to the 3-digit FIPS codes for associated counties /
         parishes / zones.
-    time_motion_location : collections.namedtuple
+    time_motion_location : TimeMotionLocation object
+        time, direction, speed, location information 
     ugc_format : str
         Either 'county' or 'zone'
-    wkt
-    vtec
+    wkt : str
+        Well known text
+    vtec : VtecCode object
+        Vtec code
     """
 
     def __init__(self, txt, base_date=None, first_segment=False):
@@ -626,6 +664,47 @@ class Segment(object):
         raise InvalidSegmentException()
 
         # Assume that the segment has a UGC string, VTEC, etc.
+
+    def __str__(self):
+        """
+    base_date : datetime.datetime
+        date attached to the file from whence this bulletin came
+    expiration_date
+        See [1]
+    headline : str
+    mnd_issuance_time : datetime.datetime
+    polygon : list
+        List of latlon pairs
+    states : dict
+        Maps states to the 3-digit FIPS codes for associated counties /
+        parishes / zones.
+    time_motion_location : collections.namedtuple
+    ugc_format : str
+        Either 'county' or 'zone'
+    wkt : str
+        Well known text corresponding to the polygon
+    vtec
+        """
+        txt = "Headline:  {}".format(self.headline)
+        txt += "\nExpiration Time:  {}".format(self.expiration_date)
+        txt += "\nMND Issuing Time:  {}".format(self.mnd_issuance_time)
+        txt += "\nWell Known Text:  {}".format(self.wkt)
+        if self.ugc_format == 'county':
+            txt += "\nUGC Counties:  {}".format(self.states)
+        else:
+            txt += "\nUGC Zones:  {}".format(self.states)
+
+        
+        for j, vtec in enumerate(self.vtec):
+            txt += "\nVTEC[{}]:  {}".format(j, vtec.code)
+
+        if self.time_motion_location is None:
+            txt += "\nTime/Motion/Location:  None"
+        else:
+            lines = [line for line in str(self.time_motion_location).split('\n')]
+            blurb = '\n'.join(['    ' + line for line in lines])
+            txt += "\nTime/Motion/Location:\n{}".format(blurb)
+        return txt
 
     def parse_content_block(self):
         """
@@ -966,26 +1045,100 @@ def adjust_to_base_date(base_date, day, hour, minute):
 
 class Event(HazardsFile):
     """
-    Bulletins for fetime of an event.
+    Bulletins for the lifetime of an event.
 
     Attributes
     ----------
     vtec_code : str
         Object containing VTEC code.
     """
-    def __init__(self, vtec_code, bulletin):
-        self.vtec_code = vtec_code
-        my_bulletin = copy.deepcopy(bulletin)
-        if len(bulletin.vtec) > 1:
-            my_bulletin.vtec = [vtec_code]
+    def __init__(self, segment, vtec_code):
+        self._vtec_code = vtec_code
+        my_segment = copy.deepcopy(segment)
+        if len(my_segment.vtec) > 1:
+            # Restrict to the given vtec code.
+            my_segment.vtec = [vtec_code]
 
-        self._items = [my_bulletin]
+        self._items = [my_segment]
+
+    def append(self, segment):
+        my_segment = copy.deepcopy(segment)
+        if len(my_segment.vtec) > 1:
+            # Restrict to the given vtec code.
+            my_segment.vtec = [vtec_code]
+
+        self._items.append(my_segment)
 
     def __str__(self):
         lst = []
-        for bulletin in self._items:
-            lst.append(str(bulletin))
+        for segment in self._items:
+            lst.append(str(segment))
         return '\n-----\n'.join(lst)
+
+    def to_shapefile(self, filename, layername):
+        """
+        Write shapefile using web mercator CRS
+
+        Parameters
+        ----------
+        filename : str
+            Path to shapefile
+        layername : str
+            Name of multipolygon layer
+        """
+        driver = ogr.GetDriverByName('ESRI Shapefile')
+        datasource = driver.CreateDataSource(filename)
+
+        web_merc = ('+proj=merc +a=6378137 +b=6356752.314245179 '
+                    '+lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 '
+                    '+k=1.0 +units=m +nadgrids=@null +wktext +no_defs')
+        spatial_reference = osr.SpatialReference()
+        spatial_reference.ImportFromProj4(web_merc)
+
+        # Create the layer
+        layer = datasource.CreateLayer(layername,
+                                       spatial_reference,
+                                       geom_type=ogr.wkbMultiPolygon)
+        layer_definition = layer.GetLayerDefn()
+
+        # Create the polygons, go thru each message, create a polygon
+        # out of the lat/lon pairs.
+        multipolygon = ogr.Geometry(ogr.wkbMultiPolygon)
+
+        for message in self._items:
+            poly = ogr.CreateGeometryFromWkt(message.wkt)
+            multipolygon.AddGeometry(poly)
+
+        # Put the geometry inside a feature.
+        feature_index = 0
+        feature = ogr.Feature(layer_definition)
+        feature.SetGeometry(multipolygon)
+        feature.SetFID(feature_index)
+
+        # Put feature inside a layer
+        layer.CreateFeature(feature)
+
+        # Flush
+        datasource.Destroy()
+
+    def precedes(self, vtec_code):
+        """
+        Test if a specific vtec code is contained in this bulletin.
+
+        Will return false, though, if the vtec codes are the same
+        for any of the segments.
+
+        Parameters
+        ----------
+        vtec_code : VtecCode
+            VTEC code object
+        """
+        for segment in self._items:
+            if segment.vtec[0].code == vtec_code.code:
+                # We've already seen this code.  Don't add it
+                # again.
+                return False
+        return True                
 
     def contains(self, vtec_code):
         """
@@ -1003,9 +1156,6 @@ class Event(HazardsFile):
             return True
         else:
             return False
-
-    def append(self, bulletin):
-        self._items.append(bulletin)
 
     def not_expired(self):
         """

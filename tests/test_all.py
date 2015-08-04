@@ -1,7 +1,9 @@
 import datetime as dt
 from datetime import datetime
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 import warnings
 
@@ -13,6 +15,8 @@ else:
     from unittest import mock
     from unittest.mock import patch
     from io import StringIO
+
+import ogr
 
 import hazards
 from hazards import HazardsFile, fetch_events
@@ -80,6 +84,53 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
+    def setUp(self):
+        self.tempdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tempdir)
+
+    def test_events(self):
+        path = os.path.join('tests', 'data', 'events', 'noaaport',
+                            'nwx', 'fflood', 'warn')
+        evts = fetch_events(path)
+
+        # 7 independent events
+        self.assertEqual(len(evts), 7)
+
+        # First event has two different messages.
+        self.assertEqual(len(evts[0]), 2)
+
+        # The rest have just a single message.
+        for j in range(1, 7):
+            self.assertEqual(len(evts[j]), 1)
+
+    def test_print_vtec(self):
+        path = os.path.join('tests', 'data', 'events', 'noaaport',
+                            'nwx', 'fflood', 'warn')
+        evts = fetch_events(path)
+        evt = evts[-1]
+        with patch('sys.stdout', new=StringIO()) as fake_stdout:
+            print(evt._vtec_code)
+            actual = fake_stdout.getvalue().strip()
+        self.assertEqual(actual, fixtures.vtec_print)
+
+    def test_print_event(self):
+        path = os.path.join('tests', 'data', 'fflood', 'warn')
+        evts = fetch_events(path)
+        evt = evts[-1]
+        with patch('sys.stdout', new=StringIO()) as fake_stdout:
+            print(evt)
+            actual = fake_stdout.getvalue().strip()
+        self.assertEqual(actual, fixtures.event_print)
+
+    @unittest.skip('volcano/volcano:  no spec')
+    def test_volcano_volcano(self):
+        path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'volcano',
+                            'volcano', '2015080210.volc')
+        HazardsFile(path)
+
+    @unittest.skip('volcano/volcano:  no spec')
     def test_marine_high_seas(self):
         path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'marine',
                             'high_sea', '2015073009.high')
@@ -354,8 +405,8 @@ class TestSuite(unittest.TestCase):
                                'watch_warn', 'svrlcl')
 
         events = fetch_events(dirname)
-        self.assertTrue(events[-1].not_expired())
         self.assertEqual(len(events), 17)
+        self.assertTrue(events[-1].not_expired())
 
         events = fetch_events(dirname, current=True)
         self.assertTrue(events[-1].not_expired())
@@ -460,6 +511,31 @@ class TestSuite(unittest.TestCase):
 
         self.assertEqual(segment.headline,
                          'TROPICAL STORM WATCH REMAINS IN EFFECT')
+
+    def test_write_shapefiles(self):
+        """
+        Verify shapefile creation
+        """
+        path = os.path.join('tests', 'data', 'torn_warn')
+        evts = fetch_events(path)
+        event = evts[-1]
+        event.to_shapefile(self.tempdir, 'torn_warn')
+
+        shapefile = os.path.join(self.tempdir, 'torn_warn.shp')
+        driver = ogr.GetDriverByName('ESRI Shapefile')
+        data_source = driver.Open(shapefile)
+        layer = data_source.GetLayer()
+        lst = []
+        for feature in layer:
+            geom = feature.GetGeometryRef()
+            lst.append(geom.ExportToWkt())
+        actual = lst
+
+        expected = [('POLYGON ((89.85 38.92,90.06 38.93,'
+                     '90.11 38.82,89.92 38.75,89.85 38.92))'), ] 
+
+        self.assertEqual(actual, expected)
+
 
     def test_torn_warn_non_segmented(self):
         """

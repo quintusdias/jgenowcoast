@@ -11,6 +11,23 @@ la_url = ('ftp://tgftp.nws.noaa.gov/data/watches_warnings/thunderstorm/la/'
 relpath = os.path.join('data', 'severe', '2015062121.severe')
 severe_thunderstorm_file = pkg.resource_filename(__name__, relpath)
 
+vtec_print = r"""Event Beginning Time: 2015-08-03 01:58:00
+Event Ending Time: 2015-08-03 04:00:00
+Product: Operational product
+Action: New event
+Office: KABQ
+Phenomena: Flash Flood
+Significance: Warning
+Tracking ID: 55"""
+
+event_print = r"""Headline:  The National Weather Service in Tulsa has issued a Flood Warning  for the following rivers in Arkansas
+Expiration Time:  2015-06-27 21:43:00
+MND Issuing Time:  2015-06-27 13:43:00
+Well Known Text:  POLYGON((94.54 35.4, 94.54 35.31, 94.22 35.31, 94.22 35.39, 94.39 35.49, 94.54 35.4))
+UGC Counties:  {'AR': [33, 131]}
+VTEC[0]:  /O.NEW.KTSA.FL.W.0065.150627T1800Z-150629T0430Z
+Time/Motion/Location:  None"""
+
 severe_print = r"""Headline: A SEVERE THUNDERSTORM WARNING REMAINS IN EFFECT UNTIL 530 PM EDT FOR NORTHEASTERN BEAVER AND SOUTH CENTRAL LAWRENCE COUNTIES
 Product: Operational product
 Action: Event continued
