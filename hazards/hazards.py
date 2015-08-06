@@ -327,17 +327,19 @@ def fetch_events(dirname, numlast=None, current=None):
         for product in hazard_file:
             for segment in product.segments:
                 for j, vtec_code in enumerate(segment.vtec):
-                    evts = [x for x in events if x.contains(vtec_code)]
-                    if len(evts) == 0:
+                    already_seen_this_vtec = False
+                    for event in events:
+                        if event.contains(vtec_code):
+                            if event.precedes(vtec_code):
+                                # Must weed out duplicates.
+                                event.append(segment)
+                            already_seen_this_vtec = True
+                            break
+
+                    if not already_seen_this_vtec:
                         # Must create a new event.
                         evt = Event(segment, vtec_code)
                         events.append(evt)
-                    else:
-                        # The event already exists.  Just add this bulletin to
-                        # the sequence of events.
-                        assert len(evts) == 1
-                        evt = evts[0]
-                        evt.append(segment)
 
     if current is not None and current:
         events = [event for event in events if event.not_expired()]
@@ -1065,6 +1067,25 @@ class Event(HazardsFile):
         for segment in self._items:
             lst.append(str(segment))
         return '\n-----\n'.join(lst)
+
+    def precedes(self, vtec_code):
+        """
+        Test if a specific vtec code is contained in this bulletin.
+
+        Will return false, though, if the vtec codes are the same
+        for any of the segments.
+
+        Parameters
+        ----------
+        vtec_code : VtecCode
+            VTEC code object
+        """
+        for segment in self._items:
+            if segment.vtec[0].code == vtec_code.code:
+                # We've already seen this code.  Don't add it
+                # again.
+                return False
+        return True                
 
     def contains(self, vtec_code):
         """

@@ -80,12 +80,20 @@ class TestHzparser(unittest.TestCase):
 class TestSuite(unittest.TestCase):
     """
     """
-    def test_print_vtec(self):
-        path = os.path.join('tests', 'data', 'torn_warn')
+    def test_events(self):
+        path = os.path.join('tests', 'data', 'events', 'noaaport',
+                            'nwx', 'fflood', 'warn')
         evts = fetch_events(path)
+        self.assertEqual(len(evts), 7)
+
+    def test_print_vtec(self):
+        path = os.path.join('tests', 'data', 'events', 'noaaport',
+                            'nwx', 'fflood', 'warn')
+        evts = fetch_events(path)
+        self.assertEqual(len(evts), 7)
         evt = evts[-1]
         with patch('sys.stdout', new=StringIO()) as fake_stdout:
-            print(evt.vtec_code)
+            print(evt._vtec_code)
             actual = fake_stdout.getvalue().strip()
         self.assertEqual(actual, fixtures.vtec_print)
 
