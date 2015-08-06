@@ -89,6 +89,16 @@ class TestSuite(unittest.TestCase):
             actual = fake_stdout.getvalue().strip()
         self.assertEqual(actual, fixtures.vtec_print)
 
+    def test_print_event(self):
+        path = os.path.join('tests', 'data', 'fflood', 'warn')
+        evts = fetch_events(path)
+        evt = evts[-1]
+        with patch('sys.stdout', new=StringIO()) as fake_stdout:
+            print(evt)
+            actual = fake_stdout.getvalue().strip()
+        import ipdb; ipdb.set_trace()
+        self.assertEqual(actual, fixtures.vtec_print)
+
     @unittest.skip('volcano/volcano:  no spec')
     def test_volcano_volcano(self):
         path = os.path.join('tests', 'data', 'noaaport', 'nwx', 'volcano',
