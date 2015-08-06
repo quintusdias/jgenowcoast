@@ -84,7 +84,16 @@ class TestSuite(unittest.TestCase):
         path = os.path.join('tests', 'data', 'events', 'noaaport',
                             'nwx', 'fflood', 'warn')
         evts = fetch_events(path)
+
+        # 7 independent events
         self.assertEqual(len(evts), 7)
+
+        # First event has two different messages.
+        self.assertEqual(len(evts[0]), 2)
+
+        # The rest have just a single message.
+        for j in range(1, 7):
+            self.assertEqual(len(evts[j]), 1)
 
     def test_print_vtec(self):
         path = os.path.join('tests', 'data', 'events', 'noaaport',
