@@ -18,6 +18,8 @@ else:
     from io import BytesIO
 import warnings
 
+from osgeo import ogr
+from osgeo import osr
 import numpy as np
 
 
@@ -314,6 +316,11 @@ def fetch_events(dirname, numlast=None, current=None):
     # exclude if it starts with a "."
     lst = [item for item in lst if not item.startswith('.')]
 
+    # The files are named with dates, so sort them.  If this were
+    # not the case, we would have to implement a lot of logic aimed
+    # at keeping the messages in order.
+    lst = sorted(lst)
+
     if numlast is None:
         fnames = [os.path.join(dirname, item) for item in lst]
     else:
@@ -327,17 +334,19 @@ def fetch_events(dirname, numlast=None, current=None):
         for product in hazard_file:
             for segment in product.segments:
                 for j, vtec_code in enumerate(segment.vtec):
-                    evts = [x for x in events if x.contains(vtec_code)]
-                    if len(evts) == 0:
+                    already_seen_this_vtec = False
+                    for event in events:
+                        if event.contains(vtec_code):
+                            if event.precedes(vtec_code):
+                                # Must weed out duplicates.
+                                event.append(segment)
+                            already_seen_this_vtec = True
+                            break
+
+                    if not already_seen_this_vtec:
                         # Must create a new event.
                         evt = Event(segment, vtec_code)
                         events.append(evt)
-                    else:
-                        # The event already exists.  Just add this bulletin to
-                        # the sequence of events.
-                        assert len(evts) == 1
-                        evt = evts[0]
-                        evt.append(segment)
 
     if current is not None and current:
         events = [event for event in events if event.not_expired()]
@@ -1065,6 +1074,71 @@ class Event(HazardsFile):
         for segment in self._items:
             lst.append(str(segment))
         return '\n-----\n'.join(lst)
+
+    def to_shapefile(self, filename, layername):
+        """
+        Write shapefile using web mercator CRS
+
+        Parameters
+        ----------
+        filename : str
+            Path to shapefile
+        layername : str
+            Name of multipolygon layer
+        """
+        driver = ogr.GetDriverByName('ESRI Shapefile')
+        datasource = driver.CreateDataSource(filename)
+
+        web_merc = ('+proj=merc +a=6378137 +b=6356752.314245179 '
+                    '+lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 '
+                    '+k=1.0 +units=m +nadgrids=@null +wktext +no_defs')
+        spatial_reference = osr.SpatialReference()
+        spatial_reference.ImportFromProj4(web_merc)
+
+        # Create the layer
+        layer = datasource.CreateLayer(layername,
+                                       spatial_reference,
+                                       geom_type=ogr.wkbMultiPolygon)
+        layer_definition = layer.GetLayerDefn()
+
+        # Create the polygons, go thru each message, create a polygon
+        # out of the lat/lon pairs.
+        multipolygon = ogr.Geometry(ogr.wkbMultiPolygon)
+
+        for message in self._items:
+            poly = ogr.CreateGeometryFromWkt(message.wkt)
+            multipolygon.AddGeometry(poly)
+
+        # Put the geometry inside a feature.
+        feature_index = 0
+        feature = ogr.Feature(layer_definition)
+        feature.SetGeometry(multipolygon)
+        feature.SetFID(feature_index)
+
+        # Put feature inside a layer
+        layer.CreateFeature(feature)
+
+        # Flush
+        datasource.Destroy()
+
+    def precedes(self, vtec_code):
+        """
+        Test if a specific vtec code is contained in this bulletin.
+
+        Will return false, though, if the vtec codes are the same
+        for any of the segments.
+
+        Parameters
+        ----------
+        vtec_code : VtecCode
+            VTEC code object
+        """
+        for segment in self._items:
+            if segment.vtec[0].code == vtec_code.code:
+                # We've already seen this code.  Don't add it
+                # again.
+                return False
+        return True                
 
     def contains(self, vtec_code):
         """
