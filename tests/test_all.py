@@ -90,6 +90,67 @@ class TestSuite(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tempdir)
 
+    def test_mnd_datetime_in_utc(self):
+        path = os.path.join('tests', 'data', 'examples', '2008060100.txt')
+        hzf = HazardsFile(path)
+        product = hzf[0]
+        segment = product.segments[0]
+
+        self.assertIsNone(segment.mnd_broadcast_instructions)
+        self.assertEqual(segment.mnd_product_type,
+                         "LATIN AMERICAN TEMP AND WEATHER TABLE")
+        self.assertEqual(segment.mnd_issuing_office,
+                         ("NWS TELECOMMUNICATION OPERATIONS CENTER "
+                          "SILVER SPRING MD"))
+        self.assertEqual(segment.mnd_issuance_time,
+                         dt.datetime(2008, 6, 1, 0, 0))
+
+    def test_mnd_product_originated_by_external_agency(self):
+        path = os.path.join('tests', 'data', 'examples', '2008012808.txt')
+        hzf = HazardsFile(path)
+        product = hzf[0]
+        segment = product.segments[0]
+
+        self.assertEqual(segment.mnd_broadcast_instructions,
+                         "BULLETIN - EAS ACTIVATION REQUESTED")
+        self.assertEqual(segment.mnd_product_type,
+                         "FIRE WARNING")
+        self.assertEqual(segment.mnd_issuing_office,
+                         ("TEXAS EMERGENCY MANAGEMENT AGENCY LUBBOCK TX\n\n"
+                          "RELAYED BY NATIONAL WEATHER SERVICE LUBBOCK TX"))
+        self.assertEqual(segment.mnd_issuance_time,
+                         dt.datetime(2008, 1, 28, 22, 2))
+
+    def test_mnd_corrected_product_update(self):
+        path = os.path.join('tests', 'data', 'examples', '2008050107.txt')
+        hzf = HazardsFile(path)
+        product = hzf[0]
+        segment = product.segments[0]
+
+        self.assertIsNone(segment.mnd_broadcast_instructions)
+        self.assertEqual(segment.mnd_product_type,
+                         "AREA FORECAST DISCUSSION...CORRECTED UPDATE")
+        self.assertEqual(segment.mnd_issuing_office,
+                         "NATIONAL WEATHER SERVICE GRAND RAPIDS MI")
+        self.assertEqual(segment.mnd_issuance_time,
+                         dt.datetime(2008, 5, 1, 19, 45))
+
+    def test_mnd_resent_product(self):
+        path = os.path.join('tests', 'data', 'examples', '2008082710.txt')
+        hzf = HazardsFile(path)
+        product = hzf[0]
+        segment = product.segments[0]
+
+        self.assertIsNone(segment.mnd_broadcast_instructions)
+        self.assertEqual(segment.mnd_product_type,
+                         "PUBLIC INFORMATION STATEMENT...RESENT")
+        self.assertEqual(segment.mnd_issuing_office,
+                         "NATIONAL WEATHER SERVICE JACKSON KY")
+        self.assertEqual(segment.mnd_product_type,
+                         "PUBLIC INFORMATION STATEMENT...RESENT")
+        self.assertEqual(segment.mnd_issuance_time,
+                         dt.datetime(2008, 8, 27, 9, 0))
+
     def test_issue43(self):
         # Just don't error out
         path = os.path.join('tests', 'data', 'events', 'noaaport',
@@ -539,8 +600,6 @@ class TestSuite(unittest.TestCase):
         for j, feature in enumerate(layer):
 
             for k in range(layerDefinition.GetFieldCount()):
-                fieldDefn = layerDefinition.GetFieldDefn(k)
-                fieldName = fieldDefn.GetName()
                 fieldValue = feature.GetField(k)
                 vteclst.append(fieldValue)
 
@@ -566,6 +625,35 @@ class TestSuite(unittest.TestCase):
                     '/O.EXP.KGRB.SV.W.0043.000000T0000Z-150802T2130Z']
         self.assertEqual(vteclst, expected)
 
+    def test_mnd_product_line_too_long(self):
+        path = os.path.join('tests', 'data', 'examples', '2008093005.txt')
+        hzf = HazardsFile(path)
+        product = hzf[0]
+        segment = product.segments[0]
+
+        self.assertIsNone(segment.mnd_broadcast_instructions)
+        self.assertEqual(segment.mnd_product_type,
+                         ('ZONE FORECAST PRODUCT FOR CENTRAL SOUTH CAROLINA '
+                          'AND EAST\n\nCENTRAL GEORGIA...UPDATED'))
+        self.assertEqual(segment.mnd_issuing_office,
+                         'NATIONAL WEATHER SERVICE COLUMBIA SC')
+        self.assertEqual(segment.mnd_issuance_time,
+                         dt.datetime(2008, 9, 30, 9, 18))
+
+    def test_mnd_header_example1(self):
+        path = os.path.join('tests', 'data', 'examples', '1999010100.txt')
+        hzf = HazardsFile(path)
+        product = hzf[0]
+        segment = product.segments[0]
+
+        self.assertEqual(segment.mnd_broadcast_instructions,
+                         "BULLETIN - EAS ACTIVATION REQUESTED")
+        self.assertEqual(segment.mnd_product_type,
+                         'TEST...TORNADO WARNING...TEST')
+        self.assertEqual(segment.mnd_issuing_office,
+                         'NATIONAL WEATHER SERVICE ABERDEED SD')
+        self.assertEqual(segment.mnd_issuance_time,
+                         dt.datetime(2008, 4, 24, 23, 54))
 
     def test_torn_warn_non_segmented(self):
         """

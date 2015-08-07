@@ -1,4 +1,8 @@
 """
+[1] states that a line should end in a three-character carriage return,
+carriage return, line feed (<cr><cr><lf>).  When python opens a file with
+universal line feed support, this becomes two newlines.
+
 References
 ----------
 [1] National Weather Service Instruction 10-1702, November 11, 2010, Operations
@@ -166,6 +170,34 @@ vtec_pattern = r'''\/
                    (?P<stop>\d{6}T\d{4}Z)
                  '''
 vtec_regex = re.compile(vtec_pattern, re.VERBOSE)
+
+pattern = r'''
+    # At least two carriage returns (see note at top)
+    [\n]{2,4}
+    # The broadcast instruction is optional.
+    ((?P<bcast_instr>(BULLETIN|FLASH|HOLD|REGULAR|URGENT)\s-\s[0-9A-Z ]*)\n\n)?
+    # The product "line" can span multiple lines
+    # Don't be greedy though!  Being greedy causes the optional 2nd product
+    # line to consume the issuing office.
+    (?P<product_line>[.A-Z ]+
+        (\n\n[.A-Z ]+)??)\n\n
+    # The issuing office "line" can also span multiple lines.
+    ((?P<issuing_office>[0-9A-Z ]*\s(?P<state>[A-Z]{2})
+        (\n\n(ISSUED|RELAYED)\sBY\sNATIONAL\sWEATHER\sSERVICE
+            [0-9A-Z ]*\s[A-Z]{2})?))\n\n
+    (?P<hh>\d{1,2})(?P<mm>\d{2})\s
+        # The timezone information can either be UTC or combined
+        # with AM/PM and another time zone
+        (
+            ((?P<meridiem>A|P)M\s(?P<timezone>\w{3,4}))
+                |
+            (?P<utc>UTC)
+        )\s
+        (?P<day_of_week>SUN|MON|TUE|WED|THU|FRI|SAT)\s
+        (?P<month>\w{3})\s
+        (?P<dd>\d{1,2})\s
+        (?P<year>\d{4})'''
+MND_regex = re.compile(pattern, re.VERBOSE)
 
 # Regular expression for parsing a UGC string.  See NWSI 10-1702 for details.
 UGC_regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)\s?(\n\n)?))+)+
@@ -374,9 +406,14 @@ class HazardsFile(object):
         self.filename = fname
         self._items = []
 
-        # Use universal newline support.
-        with open(fname, 'rtU') as f:
-            txt = f.read()
+        if sys.hexversion < 0x03000000:
+            # Use universal newline support.
+            with open(fname, 'rtU') as f:
+                txt = f.read()
+        else:
+            # U flag is deprecated in python3
+            with open(fname, 'rt') as f:
+                txt = f.read()
 
         # Get the base date from the filename.  The format is
         # YYYYMMDDHH.xxxx
@@ -619,6 +656,9 @@ class Segment(object):
         self.base_date = base_date
         self.expiration_date = None
         self.headline = None
+        self.mnd_broadcast_instruction = None
+        self.mnd_product = None
+        self.mnd_line_office = None
         self.mnd_issuance_time = None
         self.polygon = []
         self.states = None
@@ -667,25 +707,6 @@ class Segment(object):
         # Assume that the segment has a UGC string, VTEC, etc.
 
     def __str__(self):
-        """
-    base_date : datetime.datetime
-        date attached to the file from whence this bulletin came
-    expiration_date
-        See [1]
-    headline : str
-    mnd_issuance_time : datetime.datetime
-    polygon : list
-        List of latlon pairs
-    states : dict
-        Maps states to the 3-digit FIPS codes for associated counties /
-        parishes / zones.
-    time_motion_location : collections.namedtuple
-    ugc_format : str
-        Either 'county' or 'zone'
-    wkt : str
-        Well known text corresponding to the polygon
-    vtec
-        """
         txt = "Headline:  {}".format(self.headline)
         txt += "\nExpiration Time:  {}".format(self.expiration_date)
         txt += "\nMND Issuing Time:  {}".format(self.mnd_issuance_time)
@@ -982,31 +1003,37 @@ class Segment(object):
 
         402 PM CDT WED JUN 11 2008
         """
-        regex = re.compile(r'''(?P<hh>\d{1,2})(?P<mm>\d{2})\s
-                               (?P<meridiem>A|P)M\s
-                               (?P<timezone>\w{3,4})\s
-                               (?P<day_of_week>SUN|MON|TUE|WED|THU|FRI|SAT)\s
-                               (?P<month>\w{3})\s
-                               (?P<dd>\d{1,2})\s
-                               (?P<year>\d{4})
-                            ''', re.VERBOSE)
-        m = regex.search(self.txt)
+        m = MND_regex.search(self.txt)
         if m is None:
+            broadcast_instructions = None
+            product_type = None
+            issuing_office = None
             issuance_dt = None
         else:
             gd = m.groupdict()
+
+            broadcast_instructions = gd['bcast_instr']
+            product_type = gd['product_line']
+
+            issuing_office = gd['issuing_office']
+
             year = int(gd['year'])
             month = _MONTH[gd['month']]
             day = int(gd['dd'])
             hour = int(gd['hh'])
             minute = int(gd['mm'])
+
+            # Assume UTC until we know otherwise
             issuance_dt = dt.datetime(year, month, day, hour, minute, 0)
 
-            if gd['meridiem'] == 'P':
-                issuance_dt += dt.timedelta(hours=12)
+            if gd['utc'] is None:
+                if gd['meridiem'] == 'P':
+                    issuance_dt += dt.timedelta(hours=12)
+                issuance_dt -= dt.timedelta(hours=_TIMEZONES[gd['timezone']])
 
-            issuance_dt -= dt.timedelta(hours=_TIMEZONES[gd['timezone']])
-
+        self.mnd_broadcast_instructions = broadcast_instructions
+        self.mnd_product_type = product_type
+        self.mnd_issuing_office = issuing_office
         self.mnd_issuance_time = issuance_dt
 
 
@@ -1084,7 +1111,7 @@ class Event(HazardsFile):
         filename : str
             Path to shapefile
         layername : str
-            Name of multipolygon layer
+            Name of polygon layer
         """
         driver = ogr.GetDriverByName('ESRI Shapefile')
         datasource = driver.CreateDataSource(filename)
@@ -1109,8 +1136,6 @@ class Event(HazardsFile):
 
         # Create the polygons, go thru each message, create a polygon
         # out of the lat/lon pairs.
-        multipolygon = ogr.Geometry(ogr.wkbMultiPolygon)
-
         for idx, message in enumerate(self._items):
             poly = ogr.CreateGeometryFromWkt(message.wkt)
             feature = ogr.Feature(layer_definition)
