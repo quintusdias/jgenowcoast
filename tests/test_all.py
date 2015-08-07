@@ -567,6 +567,21 @@ class TestSuite(unittest.TestCase):
         self.assertEqual(vteclst, expected)
 
 
+    def test_mnd_header_example1(self):
+        path = os.path.join('tests', 'data', 'examples', '1999010100.txt')
+        hzf = HazardsFile(path)
+        product = hzf[0]
+        segment = product.segments[0]
+
+        self.assertEqual(segment.mnd_broadcast_instructions,
+                         "BULLETIN - EAS ACTIVATION REQUESTED")
+        self.assertEqual(segment.mnd_product_type,
+                         'TEST...TORNADO WARNING...TEST')
+        self.assertEqual(segment.mnd_issuing_office,
+                         'NATIONAL WEATHER SERVICE ABERDEED SD')
+        self.assertEqual(segment.mnd_issuance_time,
+                         dt.datetime(2008, 4, 24, 23, 54))
+
     def test_torn_warn_non_segmented(self):
         """
         Verify non-segmented products (torn_warn)

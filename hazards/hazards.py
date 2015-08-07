@@ -167,6 +167,20 @@ vtec_pattern = r'''\/
                  '''
 vtec_regex = re.compile(vtec_pattern, re.VERBOSE)
 
+pattern = r'''((?P<bcast_instr>(BULLETIN|FLASH|HOLD|REGULAR|URGENT)\s-\s
+                  [0-9A-Z\040]*)\n\n)?
+              (?P<product_line>[.0-9A-Z\040]*)\n\n
+              (?P<issuing_office>[0-9A-Z\040]*
+                  (\n\nISSUED\sBY\s[0-9A-Z\040]*)?)\n\n
+              (?P<hh>\d{1,2})(?P<mm>\d{2})\s
+                  (?P<meridiem>A|P)M\s
+                  (?P<timezone>\w{3,4})\s
+                  (?P<day_of_week>SUN|MON|TUE|WED|THU|FRI|SAT)\s
+                  (?P<month>\w{3})\s
+                  (?P<dd>\d{1,2})\s
+                  (?P<year>\d{4})'''
+MND_regex = re.compile(pattern, re.VERBOSE)
+
 # Regular expression for parsing a UGC string.  See NWSI 10-1702 for details.
 UGC_regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)\s?(\n\n)?))+)+
                            (?P<day>\d{2})
@@ -619,6 +633,9 @@ class Segment(object):
         self.base_date = base_date
         self.expiration_date = None
         self.headline = None
+        self.mnd_broadcast_instruction = None
+        self.mnd_product = None
+        self.mnd_line_office = None
         self.mnd_issuance_time = None
         self.polygon = []
         self.states = None
@@ -667,25 +684,6 @@ class Segment(object):
         # Assume that the segment has a UGC string, VTEC, etc.
 
     def __str__(self):
-        """
-    base_date : datetime.datetime
-        date attached to the file from whence this bulletin came
-    expiration_date
-        See [1]
-    headline : str
-    mnd_issuance_time : datetime.datetime
-    polygon : list
-        List of latlon pairs
-    states : dict
-        Maps states to the 3-digit FIPS codes for associated counties /
-        parishes / zones.
-    time_motion_location : collections.namedtuple
-    ugc_format : str
-        Either 'county' or 'zone'
-    wkt : str
-        Well known text corresponding to the polygon
-    vtec
-        """
         txt = "Headline:  {}".format(self.headline)
         txt += "\nExpiration Time:  {}".format(self.expiration_date)
         txt += "\nMND Issuing Time:  {}".format(self.mnd_issuance_time)
@@ -982,19 +980,19 @@ class Segment(object):
 
         402 PM CDT WED JUN 11 2008
         """
-        regex = re.compile(r'''(?P<hh>\d{1,2})(?P<mm>\d{2})\s
-                               (?P<meridiem>A|P)M\s
-                               (?P<timezone>\w{3,4})\s
-                               (?P<day_of_week>SUN|MON|TUE|WED|THU|FRI|SAT)\s
-                               (?P<month>\w{3})\s
-                               (?P<dd>\d{1,2})\s
-                               (?P<year>\d{4})
-                            ''', re.VERBOSE)
-        m = regex.search(self.txt)
+        m = MND_regex.search(self.txt)
         if m is None:
+            broadcast_instructions = None
+            product_type = None
+            issuing_office = None
             issuance_dt = None
         else:
             gd = m.groupdict()
+
+            broadcast_instructions = gd['bcast_instr']
+            product_type = gd['product_line']
+            issuing_office = gd['issuing_office']
+
             year = int(gd['year'])
             month = _MONTH[gd['month']]
             day = int(gd['dd'])
@@ -1007,6 +1005,9 @@ class Segment(object):
 
             issuance_dt -= dt.timedelta(hours=_TIMEZONES[gd['timezone']])
 
+        self.mnd_broadcast_instructions = broadcast_instructions
+        self.mnd_product_type = product_type
+        self.mnd_issuing_office = issuing_office
         self.mnd_issuance_time = issuance_dt
 
 
