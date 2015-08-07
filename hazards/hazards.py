@@ -314,6 +314,11 @@ def fetch_events(dirname, numlast=None, current=None):
     # exclude if it starts with a "."
     lst = [item for item in lst if not item.startswith('.')]
 
+    # The files are named with dates, so sort them.  If this were
+    # not the case, we would have to implement a lot of logic aimed
+    # at keeping the messages in order.
+    lst = sorted(lst)
+
     if numlast is None:
         fnames = [os.path.join(dirname, item) for item in lst]
     else:

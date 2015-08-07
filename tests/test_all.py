@@ -99,7 +99,6 @@ class TestSuite(unittest.TestCase):
         path = os.path.join('tests', 'data', 'events', 'noaaport',
                             'nwx', 'fflood', 'warn')
         evts = fetch_events(path)
-        self.assertEqual(len(evts), 7)
         evt = evts[-1]
         with patch('sys.stdout', new=StringIO()) as fake_stdout:
             print(evt._vtec_code)
@@ -113,8 +112,7 @@ class TestSuite(unittest.TestCase):
         with patch('sys.stdout', new=StringIO()) as fake_stdout:
             print(evt)
             actual = fake_stdout.getvalue().strip()
-        import ipdb; ipdb.set_trace()
-        self.assertEqual(actual, fixtures.vtec_print)
+        self.assertEqual(actual, fixtures.event_print)
 
     @unittest.skip('volcano/volcano:  no spec')
     def test_volcano_volcano(self):
@@ -397,8 +395,8 @@ class TestSuite(unittest.TestCase):
                                'watch_warn', 'svrlcl')
 
         events = fetch_events(dirname)
-        self.assertTrue(events[-1].not_expired())
         self.assertEqual(len(events), 17)
+        self.assertTrue(events[-1].not_expired())
 
         events = fetch_events(dirname, current=True)
         self.assertTrue(events[-1].not_expired())
