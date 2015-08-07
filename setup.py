@@ -1,7 +1,7 @@
 from setuptools import setup
 import sys
 
-install_requires = ['gdal>=1.11.0', 'numpy>=1.7.1']
+install_requires = ['gdal>=1.10.0', 'numpy>=1.7.1']
 if sys.hexversion < 0x03000000:
     install_requires.append('mock>=1.0.1')
 
