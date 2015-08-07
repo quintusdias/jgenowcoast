@@ -90,6 +90,12 @@ class TestSuite(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tempdir)
 
+    def test_issue43(self):
+        # Just don't error out
+        path = os.path.join('tests', 'data', 'events', 'noaaport',
+                            'nwx', 'watch_warn', 'noprcp')
+        fetch_events(path)
+
     def test_events(self):
         path = os.path.join('tests', 'data', 'events', 'noaaport',
                             'nwx', 'fflood', 'warn')
@@ -532,7 +538,7 @@ class TestSuite(unittest.TestCase):
         actual = lst
 
         expected = [('POLYGON ((89.85 38.92,90.06 38.93,'
-                     '90.11 38.82,89.92 38.75,89.85 38.92))'), ] 
+                     '90.11 38.82,89.92 38.75,89.85 38.92))'), ]
 
         self.assertEqual(actual, expected)
 

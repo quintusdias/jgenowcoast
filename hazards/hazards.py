@@ -6,7 +6,6 @@ and Services, Dissemination Services NWSPD 10-17, Universal Geographic CODE
 (UGC), http://www.nws.noaa.gov/directives/sym/pd01017002curr.pdf
 """
 
-import collections
 import copy
 import datetime as dt
 import os
@@ -188,6 +187,7 @@ WMO_AWIPS_regex = re.compile(r'''(?P<dtype_form>\w{2})
                                  (?P<awips_product>\w{3})
                                  (?P<awips_loc_id>[\w\s]{3})''', re.VERBOSE)
 
+
 class TimeMotionLocation(object):
     def __init__(self, time=None, direction=None, speed=None, location=None):
         """
@@ -284,7 +284,8 @@ class VtecCode(object):
         txt += "\nAction: {}".format(_VTEC_ACTION_CODE[self.action])
         txt += "\nOffice: {}".format(self.office)
         txt += "\nPhenomena: {}".format(_VTEC_PHENOMENA[self.phenomena])
-        txt += "\nSignificance: {}".format(_VTEC_SIGNIFICANCE[self.significance])
+        item = _VTEC_SIGNIFICANCE[self.significance]
+        txt += "\nSignificance: {}".format(item)
         txt += "\nTracking ID: {}".format(self.event_tracking_id)
         return txt
 
@@ -594,7 +595,7 @@ class Segment(object):
         Maps states to the 3-digit FIPS codes for associated counties /
         parishes / zones.
     time_motion_location : TimeMotionLocation object
-        time, direction, speed, location information 
+        time, direction, speed, location information
     ugc_format : str
         Either 'county' or 'zone'
     wkt : str
@@ -694,14 +695,13 @@ class Segment(object):
         else:
             txt += "\nUGC Zones:  {}".format(self.states)
 
-        
         for j, vtec in enumerate(self.vtec):
             txt += "\nVTEC[{}]:  {}".format(j, vtec.code)
 
         if self.time_motion_location is None:
             txt += "\nTime/Motion/Location:  None"
         else:
-            lines = [line for line in str(self.time_motion_location).split('\n')]
+            lines = [ln for ln in str(self.time_motion_location).split('\n')]
             blurb = '\n'.join(['    ' + line for line in lines])
             txt += "\nTime/Motion/Location:\n{}".format(blurb)
         return txt
@@ -1065,7 +1065,7 @@ class Event(HazardsFile):
         my_segment = copy.deepcopy(segment)
         if len(my_segment.vtec) > 1:
             # Restrict to the given vtec code.
-            my_segment.vtec = [vtec_code]
+            my_segment.vtec = [self._vtec_code]
 
         self._items.append(my_segment)
 
@@ -1138,7 +1138,7 @@ class Event(HazardsFile):
                 # We've already seen this code.  Don't add it
                 # again.
                 return False
-        return True                
+        return True
 
     def contains(self, vtec_code):
         """
