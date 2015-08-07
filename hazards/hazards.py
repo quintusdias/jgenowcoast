@@ -1099,24 +1099,26 @@ class Event(HazardsFile):
         layer = datasource.CreateLayer(layername,
                                        spatial_reference,
                                        geom_type=ogr.wkbMultiPolygon)
+
+        # Formulate the attribute table.
+        idField = ogr.FieldDefn('VTEC', ogr.OFTString)
+        idField.SetWidth(47)
+        layer.CreateField(idField)
+
         layer_definition = layer.GetLayerDefn()
 
         # Create the polygons, go thru each message, create a polygon
         # out of the lat/lon pairs.
         multipolygon = ogr.Geometry(ogr.wkbMultiPolygon)
 
-        for message in self._items:
+        for idx, message in enumerate(self._items):
             poly = ogr.CreateGeometryFromWkt(message.wkt)
-            multipolygon.AddGeometry(poly)
-
-        # Put the geometry inside a feature.
-        feature_index = 0
-        feature = ogr.Feature(layer_definition)
-        feature.SetGeometry(multipolygon)
-        feature.SetFID(feature_index)
-
-        # Put feature inside a layer
-        layer.CreateFeature(feature)
+            feature = ogr.Feature(layer_definition)
+            feature.SetGeometry(poly)
+            feature.SetFID(idx)
+            feature.SetField('VTEC', message.vtec[0].code)
+            layer.CreateFeature(feature)
+            feature.Destroy()
 
         # Flush
         datasource.Destroy()

@@ -522,25 +522,50 @@ class TestSuite(unittest.TestCase):
         """
         Verify shapefile creation
         """
-        path = os.path.join('tests', 'data', 'torn_warn')
+        path = os.path.join('tests', 'data', 'events', 'noaaport', 'nwx',
+                            'watch_warn', 'severe')
         evts = fetch_events(path)
-        event = evts[-1]
-        event.to_shapefile(self.tempdir, 'torn_warn')
+        event = evts[10]
+        event.to_shapefile(self.tempdir, 'severe')
 
-        shapefile = os.path.join(self.tempdir, 'torn_warn.shp')
+        shapefile = os.path.join(self.tempdir, 'severe.shp')
         driver = ogr.GetDriverByName('ESRI Shapefile')
         data_source = driver.Open(shapefile)
         layer = data_source.GetLayer()
-        lst = []
-        for feature in layer:
+        layerDefinition = layer.GetLayerDefn()
+
+        geomlst = []
+        vteclst = []
+        for j, feature in enumerate(layer):
+
+            for k in range(layerDefinition.GetFieldCount()):
+                fieldDefn = layerDefinition.GetFieldDefn(k)
+                fieldName = fieldDefn.GetName()
+                fieldValue = feature.GetField(k)
+                vteclst.append(fieldValue)
+
             geom = feature.GetGeometryRef()
-            lst.append(geom.ExportToWkt())
-        actual = lst
+            geomlst.append(geom.ExportToWkt())
 
-        expected = [('POLYGON ((89.85 38.92,90.06 38.93,'
-                     '90.11 38.82,89.92 38.75,89.85 38.92))'), ]
+        expected = [('POLYGON ((89.6 44.16,88.55 44.05,88.41 44.1,88.4 44.24,'
+                     '87.96 44.25,87.77 44.55,87.9 44.57,87.97 44.54,'
+                     '88.03 44.58,88.98 44.69,89.32 44.47,89.73 44.3,'
+                     '89.72 44.25,89.6 44.25,89.6 44.16))'),
+                    ('POLYGON ((89.6 44.16,88.55 44.05,88.41 44.1,88.4 44.24,'
+                     '87.96 44.25,87.77 44.55,87.9 44.57,87.97 44.54,'
+                     '88.03 44.58,88.86 44.58,89.15 44.46,89.3 44.38,'
+                     '89.39 44.34,89.49 44.28,89.6 44.16))'),
+                    ('POLYGON ((89.6 44.16,88.54 44.05,88.41 44.1,88.4 44.24,'
+                     '87.96 44.25,87.77 44.55,87.9 44.57,88.04 44.57,'
+                     '88.03 44.58,88.04 44.58,88.79 44.39,89.0 44.37,'
+                     '89.22 44.29,89.23 44.24,89.32 44.24,89.6 44.16))')]
+        self.assertEqual(geomlst, expected)
 
-        self.assertEqual(actual, expected)
+        expected = ['/O.CON.KGRB.SV.W.0043.000000T0000Z-150802T2130Z',
+                    '/O.CAN.KGRB.SV.W.0043.000000T0000Z-150802T2130Z',
+                    '/O.EXP.KGRB.SV.W.0043.000000T0000Z-150802T2130Z']
+        self.assertEqual(vteclst, expected)
+
 
     def test_torn_warn_non_segmented(self):
         """
