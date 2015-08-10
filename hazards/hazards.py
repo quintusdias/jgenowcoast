@@ -1,4 +1,8 @@
 """
+[1] states that a line should end in a three-character carriage return,
+carriage return, line feed (<cr><cr><lf>).  When python opens a file with
+universal line feed support, this becomes two newlines.
+
 References
 ----------
 [1] National Weather Service Instruction 10-1702, November 11, 2010, Operations
@@ -167,18 +171,32 @@ vtec_pattern = r'''\/
                  '''
 vtec_regex = re.compile(vtec_pattern, re.VERBOSE)
 
-pattern = r'''((?P<bcast_instr>(BULLETIN|FLASH|HOLD|REGULAR|URGENT)\s-\s
-                  [0-9A-Z\040]*)\n\n)?
-              (?P<product_line>[.0-9A-Z\040]*)\n\n
-              (?P<issuing_office>[0-9A-Z\040]*
-                  (\n\nISSUED\sBY\s[0-9A-Z\040]*)?)\n\n
-              (?P<hh>\d{1,2})(?P<mm>\d{2})\s
-                  (?P<meridiem>A|P)M\s
-                  (?P<timezone>\w{3,4})\s
-                  (?P<day_of_week>SUN|MON|TUE|WED|THU|FRI|SAT)\s
-                  (?P<month>\w{3})\s
-                  (?P<dd>\d{1,2})\s
-                  (?P<year>\d{4})'''
+pattern = r'''
+    # At least two carriage returns (see note at top)
+    [\n]{2,4}
+    # The broadcast instruction is optional.
+    ((?P<bcast_instr>(BULLETIN|FLASH|HOLD|REGULAR|URGENT)\s-\s[0-9A-Z ]*)\n\n)?
+    # The product "line" can span multiple lines
+    # Don't be greedy though!  Being greedy causes the optional 2nd product
+    # line to consume the issuing office.
+    (?P<product_line>[.A-Z ]+
+        (\n\n[.A-Z ]+)??)\n\n
+    # The issuing office "line" can also span multiple lines.
+    ((?P<issuing_office>[0-9A-Z ]*\s(?P<state>[A-Z]{2})
+        (\n\n(ISSUED|RELAYED)\sBY\sNATIONAL\sWEATHER\sSERVICE
+            [0-9A-Z ]*\s[A-Z]{2})?))\n\n
+    (?P<hh>\d{1,2})(?P<mm>\d{2})\s
+        # The timezone information can either be UTC or combined
+        # with AM/PM and another time zone
+        (
+            ((?P<meridiem>A|P)M\s(?P<timezone>\w{3,4}))
+                |
+            (?P<utc>UTC)
+        )\s
+        (?P<day_of_week>SUN|MON|TUE|WED|THU|FRI|SAT)\s
+        (?P<month>\w{3})\s
+        (?P<dd>\d{1,2})\s
+        (?P<year>\d{4})'''
 MND_regex = re.compile(pattern, re.VERBOSE)
 
 # Regular expression for parsing a UGC string.  See NWSI 10-1702 for details.
@@ -388,9 +406,14 @@ class HazardsFile(object):
         self.filename = fname
         self._items = []
 
-        # Use universal newline support.
-        with open(fname, 'rtU') as f:
-            txt = f.read()
+        if sys.hexversion < 0x03000000:
+            # Use universal newline support.
+            with open(fname, 'rtU') as f:
+                txt = f.read()
+        else:
+            # U flag is deprecated in python3
+            with open(fname, 'rt') as f:
+                txt = f.read()
 
         # Get the base date from the filename.  The format is
         # YYYYMMDDHH.xxxx
@@ -991,6 +1014,7 @@ class Segment(object):
 
             broadcast_instructions = gd['bcast_instr']
             product_type = gd['product_line']
+
             issuing_office = gd['issuing_office']
 
             year = int(gd['year'])
@@ -998,12 +1022,14 @@ class Segment(object):
             day = int(gd['dd'])
             hour = int(gd['hh'])
             minute = int(gd['mm'])
+
+            # Assume UTC until we know otherwise
             issuance_dt = dt.datetime(year, month, day, hour, minute, 0)
 
-            if gd['meridiem'] == 'P':
-                issuance_dt += dt.timedelta(hours=12)
-
-            issuance_dt -= dt.timedelta(hours=_TIMEZONES[gd['timezone']])
+            if gd['utc'] is None:
+                if gd['meridiem'] == 'P':
+                    issuance_dt += dt.timedelta(hours=12)
+                issuance_dt -= dt.timedelta(hours=_TIMEZONES[gd['timezone']])
 
         self.mnd_broadcast_instructions = broadcast_instructions
         self.mnd_product_type = product_type
@@ -1085,7 +1111,7 @@ class Event(HazardsFile):
         filename : str
             Path to shapefile
         layername : str
-            Name of multipolygon layer
+            Name of polygon layer
         """
         driver = ogr.GetDriverByName('ESRI Shapefile')
         datasource = driver.CreateDataSource(filename)
@@ -1110,8 +1136,6 @@ class Event(HazardsFile):
 
         # Create the polygons, go thru each message, create a polygon
         # out of the lat/lon pairs.
-        multipolygon = ogr.Geometry(ogr.wkbMultiPolygon)
-
         for idx, message in enumerate(self._items):
             poly = ogr.CreateGeometryFromWkt(message.wkt)
             feature = ogr.Feature(layer_definition)
