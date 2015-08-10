@@ -185,6 +185,7 @@ pattern = r'''
     ((?P<issuing_office>[0-9A-Z ]*\s(?P<state>[A-Z]{2})
         (\n\n(ISSUED|RELAYED)\sBY\sNATIONAL\sWEATHER\sSERVICE
             [0-9A-Z ]*\s[A-Z]{2})?))\n\n
+    # The MND issuance time is required.
     (?P<hh>\d{1,2})(?P<mm>\d{2})\s
         # The timezone information can either be UTC or combined
         # with AM/PM and another time zone
@@ -198,6 +199,27 @@ pattern = r'''
         (?P<dd>\d{1,2})\s
         (?P<year>\d{4})'''
 MND_regex = re.compile(pattern, re.VERBOSE)
+
+pattern = r'''
+    \n\n
+    # There is not supposed to be a space at the end of a UGC line, but
+    # sometimes there is.
+    (?P<ugc_string>(\w{2}[CZ](\d{3}((-|>)\s?(\n\n)?))+)+\d{6}-)[ ]?\n\n
+    # The primary vtec is optional, there can be many.
+    (?P<pvtec_string>((\/\w\.\w{3}\.\w{4}\.\w{2}\.\w\.\d{4}\.
+        \d{6}T\d{4}Z-\d{6}T\d{4}Z\/)\n\n)*)
+    # The HVTEC is optional, there can only be one?
+    ((?P<hvtec_string>(\/\w{5}\.\w\.\w{2}\.
+        \d{6}T\d{4}Z\.\d{6}T\d{4}Z\.\d{6}T\d{4}Z\.\w{2}[/]\n\n))?)
+    # The UGC plain language section is optional but can span many lines.
+    # Make it lead off with a letter, though.  A newline may cause it to
+    # consume too much.
+    (?P<ugc_plain_lang>([A-Z][A-Z.\- ]*\n\n)*)
+    # e.g. '948 AM EDT WED JUN 24 2015'
+    (?P<datetime_line>\d{3,4}\s(A|P)M\s\w{3}\s\w{3}\s\w{3}\s\d{1,2}\s\d{4})?
+    \n\n
+'''
+SEGMENT_HEADER_regex = re.compile(pattern, re.VERBOSE)
 
 # Regular expression for parsing a UGC string.  See NWSI 10-1702 for details.
 UGC_regex = re.compile(r'''(\w{2}[CZ](\d{3}((-|>)\s?(\n\n)?))+)+
@@ -875,10 +897,13 @@ class Segment(object):
             c.    UGC associated plain language names as appropriate
             d.    an issuing date/time as appropriate
         """
-        self.parse_universal_geographic_code()
-        self.parse_vtec_code()
+        m = SEGMENT_HEADER_regex.search(self.txt)
+        if m is not None:
+            gd = m.groupdict()
+            self.parse_universal_geographic_code(gd['ugc_string'])
+            self.parse_vtec_code(gd['pvtec_string'])
 
-    def parse_universal_geographic_code(self):
+    def parse_universal_geographic_code(self, txt):
         """
         Parse the UGC and product expiration time.
 
@@ -892,7 +917,7 @@ class Segment(object):
         [1] http://www.nws.noaa.gov/directives/sym/pd01017002curr.pdf
         """
 
-        m = UGC_regex.search(self.txt)
+        m = UGC_regex.search(txt)
 
         dd = int(m.group('day'))
         hh = int(m.group('hour'))
@@ -900,7 +925,7 @@ class Segment(object):
 
         self.expiration_date = adjust_to_base_date(self.base_date, dd, hh, mm)
 
-        self._parse_ugc_geography(m.group())
+        self._parse_ugc_geography(txt)
 
     def _parse_ugc_geography(self, txt):
         """
@@ -958,7 +983,7 @@ class Segment(object):
         self.states = states
         self.ugc_format = 'county' if format == 'C' else 'zone'
 
-    def parse_vtec_code(self):
+    def parse_vtec_code(self, txt):
         """
         Parse the VTEC string from the message.
 
@@ -975,9 +1000,12 @@ class Segment(object):
         """
         self.vtec = []
 
+        if txt is None:
+            return
+
         _codes = []
 
-        for m in vtec_regex.finditer(self.txt):
+        for m in vtec_regex.finditer(txt):
             the_vtec_code = m.group()
             _codes.append(the_vtec_code)
             self.vtec.append(VtecCode(m))
