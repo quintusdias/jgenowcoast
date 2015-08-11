@@ -90,6 +90,49 @@ class TestSuite(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tempdir)
 
+    def test_segment_header_with_two_timezones(self):
+        path = os.path.join('tests', 'data', 'examples', '200701130930.txt')
+        hzf = HazardsFile(path)
+
+    def test_segment_header_no_plain_language_names(self):
+        path = os.path.join('tests', 'data', 'examples', '200804091525.txt')
+        hzf = HazardsFile(path)
+        product = hzf[0]
+        segment = product.segments[0]
+        expected = 'MOTLEY TX-COTLE TX-\n\n'
+        self.assertEqual(segment.segment_ugc_plain_language, expected)
+
+    def test_segment_header_no_vtec(self):
+        path = os.path.join('tests', 'data', 'examples', '2008051906.txt')
+        hzf = HazardsFile(path)
+        product = hzf[0]
+        segment = product.segments[0]
+        self.assertEqual(len(segment.vtec), 0)
+        expected = '\n\n'.join(['NORTHEAST AROOSTOOK-',
+                                ('INCLUDING THE CITIES OF...PRESQUE ISLE...'
+                                 'CARIBOU...VAN BUREN...'),
+                                'MARS HILL\n\n'])
+        self.assertEqual(segment.segment_ugc_plain_language, expected)
+
+    def test_segment_header_two_vtec_no_ugc_plain_lang(self):
+        path = os.path.join('tests', 'data', 'examples', '200709130900.txt')
+        hzf = HazardsFile(path)
+        product = hzf[0]
+        segment = product.segments[0]
+        self.assertEqual(len(segment.vtec), 2)
+        self.assertEqual(segment.segment_ugc_plain_language, '')
+
+    def test_segment_header_ugc_and_datetime_line_only(self):
+        path = os.path.join('tests', 'data', 'examples', '200805252245.txt')
+        hzf = HazardsFile(path)
+        product = hzf[0]
+        segment = product.segments[0]
+        self.assertEqual(segment.states['PZ'], [100])
+        self.assertEqual(hzf[0].segments[0].expiration_date,
+                         dt.datetime(2008, 5, 25, 22, 45, 0))
+        self.assertEqual(len(segment.vtec), 0)
+        self.assertEqual(segment.segment_ugc_plain_language, '')
+
     def test_mnd_datetime_in_utc(self):
         path = os.path.join('tests', 'data', 'examples', '2008060100.txt')
         hzf = HazardsFile(path)

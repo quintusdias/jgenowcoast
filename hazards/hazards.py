@@ -215,8 +215,15 @@ pattern = r'''
     # Make it lead off with a letter, though.  A newline may cause it to
     # consume too much.
     (?P<ugc_plain_lang>([A-Z][A-Z.\- ]*\n\n)*)
-    # e.g. '948 AM EDT WED JUN 24 2015'
-    (?P<datetime_line>\d{3,4}\s(A|P)M\s\w{3}\s\w{3}\s\w{3}\s\d{1,2}\s\d{4})?
+    # Date time line, e.g. '948 AM EDT WED JUN 24 2015'
+    # There might be two time zones if the event crosses a time zone.
+    # And the date time line here is optional as well.
+    (?P<datetime_line>
+        (\d{3,4}\s(A|P)M\s\w{3}\s\w{3}\s\w{3}\s\d{1,2}\s\d{4})
+        (([ ][/])
+         (\d{3,4}\s(A|P)M\s\w{3}\s\w{3}\s\w{3}\s\d{1,2}\s\d{4})
+         ([/]))?
+    )?
     \n\n
 '''
 SEGMENT_HEADER_regex = re.compile(pattern, re.VERBOSE)
@@ -650,6 +657,8 @@ class Segment(object):
         Mass news disseminator issuance time
     polygon : list
         Lat/lon pairs defining an area
+    segment_ugc_plain_language : str
+        Descriptive text for zone and city names
     states : dict
         Maps states to the 3-digit FIPS codes for associated counties /
         parishes / zones.
@@ -683,6 +692,7 @@ class Segment(object):
         self.mnd_line_office = None
         self.mnd_issuance_time = None
         self.polygon = []
+        self.segment_ugc_plain_language = None
         self.states = None
         self.time_motion_location = None
         self.ugc_format = None
@@ -902,6 +912,7 @@ class Segment(object):
             gd = m.groupdict()
             self.parse_universal_geographic_code(gd['ugc_string'])
             self.parse_vtec_code(gd['pvtec_string'])
+            self.segment_ugc_plain_language = gd['ugc_plain_lang']
 
     def parse_universal_geographic_code(self, txt):
         """
